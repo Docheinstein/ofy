@@ -11,3 +11,4 @@ backend/library/
 .idea/
 *.egg-info/
 .shots/
+.termux-packages

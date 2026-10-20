@@ -23,7 +23,8 @@ Search ─▶ Artist ─▶ Album (pick edition) ─▶ Download
 ## Quick start
 
 Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 18+, GNU make, ffmpeg (and ideally `deno` or
-Node ≥ 20 on `PATH` for yt-dlp, see [Updating yt-dlp](#updating-yt-dlp)).
+Node ≥ 20 on `PATH` for yt-dlp, see [Updating yt-dlp](#updating-yt-dlp)). On Android, see [Android (Termux)](#android-termux):
+there `make` installs everything itself.
 
 ```bash
 make build          # install backend + frontend dependencies and build the UI
@@ -83,18 +84,21 @@ The same app also runs as a plain web server (e.g. on a home server, used from a
 ### Android (Termux)
 
 On a phone Ofy runs as a web app: the server in [Termux](https://termux.dev), the UI in the browser.
+`make` detects Termux and does the setup itself:
 
 ```bash
+pkg install git make
+git clone https://github.com/Docheinstein/ofy.git && cd ofy
 termux-setup-storage    # once: lets the library live in shared storage (Music/Ofy)
-./termux.sh setup       # installs packages, the backend venv and the UI build
-./termux.sh             # starts the server and opens http://localhost:8080
+make                    # installs the Termux packages, the backend venv (with pip) and the UI build
+make web                # starts the server and opens http://localhost:8080 (`make run` does the same)
 ```
 
-The first setup is slow: Termux has no prebuilt wheels, so pydantic-core (Rust), rapidfuzz and a
+The first `make` is slow: Termux has no prebuilt wheels, so pydantic-core (Rust), rapidfuzz and a
 few C extensions are compiled on the phone. If the UI won't build there, run `make` on a
-computer and copy `frontend/dist` over. The server listens on localhost only (set `OFY_HOST=0.0.0.0`
-to reach it over Wi-Fi) and holds a Termux wake lock while running so downloads aren't suspended.
-The desktop window (`ofy-desktop`) isn't available on Android.
+computer and copy `frontend/dist` over; it's used as is when the build fails. The server listens on
+localhost only (set `OFY_HOST=0.0.0.0` to reach it over Wi-Fi) and holds a Termux wake lock while
+running so downloads aren't suspended. The desktop window (`ofy-desktop`) isn't available on Android.
 
 ## Development
 
