@@ -364,7 +364,9 @@ Follows [Picard's tag mapping](https://picard-docs.musicbrainz.org/en/appendices
 
 Notes: as in Picard, Vorbis `MUSICBRAINZ_TRACKID` holds the *recording* id and the release-track id is
 `MUSICBRAINZ_RELEASETRACKID`. Release type/status are lower-case (`album`, `official`). Genres are the
-top 5 genres merged from recording, release and release group by vote count. MP3 files are saved as
+top 5 genres merged from recording, release and release group by vote count, written as separate values;
+for players that show them as one genre (e.g. Poweramp reading ID3v2.4), Settings → Tags can join them
+into one value with a separator or keep only the top genre. MP3 files are saved as
 ID3v2.4 without an ID3v1 tag. Composite (concatenated) matches store all video ids joined with `+`.
 
 ## Updating yt-dlp

@@ -167,7 +167,8 @@ async def _download_track(track_id: str, release: dict, settings: Settings, work
     log.info("%s: %s %s -> %s", t.title, "remuxed" if copied else "encoded", src_codec, fmt)
     # 3. tag
     t = update_track(track_id, stage="tagging")
-    model = build_tag_model(release, track_id, youtube_video_id=t.video_id)
+    model = build_tag_model(release, track_id, youtube_video_id=t.video_id,
+                            genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
     rg_id = (release.get("release-group") or {}).get("id")
     cover = await coverart.front_for_release(release["id"], rg_id, "1200")
     await asyncio.to_thread(writers.write_tags, tmp_out, model, cover)
@@ -291,7 +292,8 @@ async def handle_retag(job: Job) -> None:
         if t.status != "done" or not t.file_path or not Path(t.file_path).is_file():
             continue
         path = Path(t.file_path)
-        model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id)
+        model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id,
+                                genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
         if settings.lyrics_embed:
             model.lyrics = await asyncio.to_thread(writers.get_lyrics, path)
         update_track(t.track_id, stage="tagging")

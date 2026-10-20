@@ -7,12 +7,15 @@ Field semantics follow MusicBrainz Picard's internal tag names
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from ofy.mb import logic
 
 VARIOUS_ARTISTS_ID = "89ad4ac3-39f7-470e-963a-56509c546377"
 MAX_GENRES = 5
+# How several genres are written: as separate values (the ID3v2.4/MP4/Vorbis standard), as one value
+# joined with a separator (for players that don't read multi-value tags), or only the top one.
+GenreMode = Literal["multi", "joined", "first"]
 
 
 @dataclass
@@ -119,7 +122,22 @@ def _find_track(release: dict[str, Any], track_id: str) -> tuple[dict[str, Any],
     raise KeyError(f"track {track_id} not on release {release.get('id')}")
 
 
-def build_tag_model(release: dict[str, Any], track_id: str, *, youtube_video_id: str | None = None) -> TagModel:
+def format_genres(genres: list[str], mode: GenreMode = "multi", separator: str = "; ") -> list[str]:
+    if not genres or mode == "multi":
+        return genres
+    if mode == "first":
+        return genres[:1]
+    return [separator.join(genres)]
+
+
+def build_tag_model(
+    release: dict[str, Any],
+    track_id: str,
+    *,
+    youtube_video_id: str | None = None,
+    genre_mode: GenreMode = "multi",
+    genre_separator: str = "; ",
+) -> TagModel:
     medium, track = _find_track(release, track_id)
     rec = track.get("recording") or {}
     rg = release.get("release-group") or {}
@@ -146,7 +164,8 @@ def build_tag_model(release: dict[str, Any], track_id: str, *, youtube_video_id:
         date=release.get("date") or None,
         originaldate=rg.get("first-release-date") or None,
         originalyear=logic.year_of(rg.get("first-release-date")),
-        genres=top_genres(rec.get("genres"), release.get("genres"), rg.get("genres")),
+        genres=format_genres(top_genres(rec.get("genres"), release.get("genres"), rg.get("genres")),
+                             genre_mode, genre_separator),
         labels=list(dict.fromkeys(li["label"]["name"] for li in labels if li.get("label"))),
         catalognumbers=list(dict.fromkeys(li["catalog-number"] for li in labels if li.get("catalog-number"))),
         barcode=release.get("barcode") or None,

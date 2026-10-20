@@ -1,5 +1,5 @@
 from ofy.tagging.mapping import model_to_fields
-from ofy.tagging.model import VARIOUS_ARTISTS_ID, build_tag_model, top_genres
+from ofy.tagging.model import VARIOUS_ARTISTS_ID, build_tag_model, format_genres, top_genres
 
 RELEASE_ID = "1834eae1-741b-3c03-9ca5-0df3decb43ea"
 RADIOHEAD = "a74b1b7f-71a5-4011-9441-d0b5e4122711"
@@ -102,3 +102,20 @@ def test_top_genres_merges_and_filters_noise():
     g = top_genres([{"name": "rock", "count": 50}], [{"name": "rock", "count": 10}, {"name": "pop", "count": 2}],
                    [{"name": "indie", "count": 20}])
     assert g == ["rock", "indie"]
+
+
+def test_format_genres():
+    g = ["pop", "dance-pop", "synth-pop"]
+    assert format_genres(g) == g
+    assert format_genres(g, "joined", "; ") == ["pop; dance-pop; synth-pop"]
+    assert format_genres(g, "joined", "/") == ["pop/dance-pop/synth-pop"]
+    assert format_genres(g, "first") == ["pop"]
+    assert format_genres([], "joined") == [] and format_genres([], "first") == []
+
+
+def test_build_with_genre_mode(fixture):
+    rel = fixture("release_ok_computer.json")
+    t = _airbag(rel)
+    multi = build_tag_model(rel, t["id"]).genres
+    assert build_tag_model(rel, t["id"], genre_mode="first").genres == multi[:1]
+    assert build_tag_model(rel, t["id"], genre_mode="joined", genre_separator=";").genres == [";".join(multi)]

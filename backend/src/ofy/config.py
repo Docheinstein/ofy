@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ofy import __version__
 from ofy.download.paths import DEFAULT_TEMPLATE, LEGACY_DEFAULT_TEMPLATES
+from ofy.tagging.model import GenreMode
 
 # MusicBrainz asks for "App/version ( contact )"; the contact comes from OFY_CONTACT when set.
 USER_AGENT = f"Ofy/{__version__}"
@@ -125,6 +126,8 @@ class Settings(BaseModel):
     lrclib_url: str = "https://lrclib.net"
     cookies_path: str = ""
     max_retries: int = Field(default=3, ge=0, le=10)
+    genre_mode: GenreMode = "multi"
+    genre_separator: str = Field(default="; ", min_length=1)
     # Sync to a remote peer (rsync over SSH; no host = a local folder, e.g. a mounted drive)
     sync_host: str = ""
     sync_user: str = ""

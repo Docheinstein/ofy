@@ -47,6 +47,8 @@ export interface Settings {
   lrclib_url: string;
   cookies_path: string;
   max_retries: number;
+  genre_mode: "multi" | "joined" | "first";
+  genre_separator: string;
   sync_host: string;
   sync_user: string;
   sync_port: number;

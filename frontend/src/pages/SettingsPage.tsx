@@ -89,6 +89,31 @@ export function SettingsPage() {
         </section>
 
         <section className="space-y-5">
+          <h2 className="text-lg font-bold">Tags</h2>
+          <Field label="Multiple genres" hint="Applies to new downloads and to Retag">
+            <Select value={form.genre_mode} onValueChange={(v) => set("genre_mode", v as Settings["genre_mode"])}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="multi">Separate values (standard)</SelectItem>
+                <SelectItem value="joined">One value, joined with a separator</SelectItem>
+                <SelectItem value="first">Top genre only</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          {form.genre_mode === "joined" && (
+            <Field label="Genre separator" hint={`e.g. "pop${form.genre_separator}dance-pop"`}>
+              <Input
+                className="font-mono text-xs"
+                value={form.genre_separator}
+                onChange={(e) => set("genre_separator", e.target.value)}
+              />
+            </Field>
+          )}
+        </section>
+
+        <section className="space-y-5">
           <h2 className="text-lg font-bold">Downloads &amp; matching</h2>
           <Field label="Concurrent downloads">
             <Input
