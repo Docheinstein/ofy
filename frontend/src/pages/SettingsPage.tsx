@@ -128,7 +128,7 @@ export function SettingsPage() {
           <Field label="Fetch lyrics from LRCLIB">
             <Switch checked={form.lyrics_fetch} onCheckedChange={(v) => set("lyrics_fetch", v)} />
           </Field>
-          <Field label="Prefer synced lyrics" hint="Save .lrc when available, else .txt">
+          <Field label="Prefer synced lyrics" hint="Save a .lrc when synced lyrics match the file's length; plain lyrics only go in the tags">
             <Switch checked={form.lyrics_prefer_synced} onCheckedChange={(v) => set("lyrics_prefer_synced", v)} />
           </Field>
           <Field label="Embed lyrics in tags">

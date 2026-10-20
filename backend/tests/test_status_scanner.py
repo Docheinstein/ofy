@@ -21,7 +21,8 @@ def test_lyrics_from_sidecars():
     assert lyrics_from_sidecars("none", "synced") == "synced"
     assert lyrics_from_sidecars("synced", "none") == "none"
     assert lyrics_from_sidecars("instrumental", "none") == "instrumental"
-    assert lyrics_from_sidecars("not_found", "plain") == "plain"
+    assert lyrics_from_sidecars("not_found", "synced") == "synced"
+    assert lyrics_from_sidecars("plain", "none") == "plain"  # embedded in the tags, no sidecar
 
 
 def test_deleted_audio_resets_track():
@@ -41,10 +42,16 @@ def test_deleted_lrc_updates_lyrics():
     assert c.fields == {"lyrics_status": "none", "lyrics_path": None}
 
 
-def test_added_txt_detected():
-    db = [DbTrack("a", "done", "/m/a.mp3", "not_found", "mp3", None)]
-    (c,) = plan_reconcile(db, {"a": FoundFile("/m/a.mp3", "mp3", "plain")})
-    assert c.fields == {"lyrics_status": "plain", "lyrics_path": "/m/a.txt"}
+def test_added_lrc_detected():
+    db = [DbTrack("a", "done", "/m/a.mp3", "plain", "mp3", None)]
+    (c,) = plan_reconcile(db, {"a": FoundFile("/m/a.mp3", "mp3", "synced")})
+    assert c.fields == {"lyrics_status": "synced", "lyrics_path": "/m/a.lrc"}
+
+
+def test_legacy_txt_path_dropped_plain_kept():
+    db = [DbTrack("a", "done", "/m/a.mp3", "plain", "mp3", "/m/a.txt")]
+    (c,) = plan_reconcile(db, {"a": FoundFile("/m/a.mp3", "mp3", "none")})
+    assert c.fields == {"lyrics_path": None}
 
 
 def test_moved_file_followed():

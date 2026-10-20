@@ -36,7 +36,7 @@ from ofy.tracks import (
 
 log = logging.getLogger(__name__)
 
-SIDECAR_EXTS = (".lrc", ".txt")
+SIDECAR_EXTS = (".lrc", ".txt")  # moved/removed along with the audio; .txt only from older versions
 
 
 # --- enqueueing --------------------------------------------------------------------------------
@@ -175,7 +175,8 @@ async def _download_track(track_id: str, release: dict, settings: Settings, work
     lyr: lyrics_service.LyricsOutcome | None = None
     if settings.lyrics_fetch:
         t = update_track(track_id, stage="lyrics")
-        lyr = await lyrics_service.fetch_for_model(model, settings)
+        audio_s = await asyncio.to_thread(writers.audio_length, tmp_out)
+        lyr = await lyrics_service.fetch_for_model(model, settings, audio_s=audio_s)
         if lyr.embed_text and settings.lyrics_embed:
             try:
                 await asyncio.to_thread(writers.set_lyrics, tmp_out, lyr.embed_text)
@@ -337,8 +338,10 @@ async def handle_lyrics(job: Job) -> None:
     path = Path(t.file_path)
     update_track(t.track_id, stage="lyrics")
     try:
-        lyr = await lyrics_service.fetch_for_model(model, settings)
-        if settings.lyrics_embed:
+        audio_s = await asyncio.to_thread(writers.audio_length, path)
+        lyr = await lyrics_service.fetch_for_model(model, settings, audio_s=audio_s)
+        # A failed lookup keeps what's there: the tags may hold the only copy of plain lyrics.
+        if settings.lyrics_embed and lyr.status != "error":
             await asyncio.to_thread(writers.set_lyrics, path, lyr.embed_text)
         status, lp = lyrics_service.write_sidecar(path, lyr, model, settings)
     finally:

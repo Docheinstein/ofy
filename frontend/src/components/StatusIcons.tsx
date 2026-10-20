@@ -100,7 +100,7 @@ export function TrackStatusButton({ status, progress = 0, stage, error, onDownlo
 export function LyricsIndicator({ status }: { status: LyricsStatus }) {
   const map: Record<LyricsStatus, { icon: React.ReactNode; tip: string; cls: string }> = {
     synced: { icon: <Mic2 className="h-3.5 w-3.5" />, tip: "Synced lyrics (.lrc)", cls: "text-primary" },
-    plain: { icon: <FileText className="h-3.5 w-3.5" />, tip: "Plain lyrics (.txt)", cls: "text-sky-400" },
+    plain: { icon: <FileText className="h-3.5 w-3.5" />, tip: "Plain lyrics (in tags)", cls: "text-sky-400" },
     instrumental: { icon: <MicOff className="h-3.5 w-3.5" />, tip: "Instrumental", cls: "text-muted-foreground" },
     not_found: { icon: <MicOff className="h-3.5 w-3.5" />, tip: "No lyrics found", cls: "text-muted-foreground/50" },
     none: { icon: null, tip: "", cls: "" },

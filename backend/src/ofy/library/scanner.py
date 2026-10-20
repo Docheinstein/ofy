@@ -1,7 +1,7 @@
 """Library scanner: reconcile the database with what's actually on disk.
 
 Detects audio files deleted/moved/added outside the app (matched by their MusicBrainz release
-track id tag) and lyrics sidecars (.lrc/.txt) added or removed.
+track id tag) and .lrc lyrics sidecars added or removed.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ class DbTrack:
 class FoundFile:
     path: str
     fmt: str
-    lyrics: str  # synced | plain | none (from sidecars on disk)
+    lyrics: str  # synced (.lrc on disk) | plain (embedded, only read for unknown files) | none
     tags: dict[str, list[str]] | None = None  # only read for files the DB doesn't know
 
 
@@ -55,10 +55,10 @@ class ScanResult:
 
 
 def lyrics_from_sidecars(previous: str, on_disk: str) -> str:
-    """Sidecars win; without one keep instrumental/not_found, otherwise reset to none."""
-    if on_disk in ("synced", "plain"):
+    """A .lrc wins; without one keep plain (embedded in the tags)/instrumental/not_found, else none."""
+    if on_disk == "synced":
         return on_disk
-    if previous in ("instrumental", "not_found"):
+    if previous in ("plain", "instrumental", "not_found"):
         return previous
     return "none"
 
@@ -108,8 +108,6 @@ def _sidecar_path(audio: str, lyrics: str) -> str | None:
         return None
     if lyrics == "synced":
         return str(Path(audio).with_suffix(".lrc"))
-    if lyrics == "plain":
-        return str(Path(audio).with_suffix(".txt"))
     return None
 
 
@@ -125,11 +123,7 @@ def _walk(root: Path) -> list[Path]:
 
 
 def _sidecar_state(p: Path) -> str:
-    if p.with_suffix(".lrc").is_file():
-        return "synced"
-    if p.with_suffix(".txt").is_file():
-        return "plain"
-    return "none"
+    return "synced" if p.with_suffix(".lrc").is_file() else "none"
 
 
 def scan_library() -> ScanResult:
@@ -158,6 +152,8 @@ def scan_library() -> ScanResult:
         tid = (tags.get("musicbrainz_trackid") or [None])[0]
         if not tid or tid in found:
             continue
+        if lyr == "none" and tags.get("lyrics"):
+            lyr = "plain"
         found[tid] = FoundFile(sp, fmt, lyr, tags)
     # A tracked file that's been moved still shows up under its id via tags; a known path
     # that still exists keeps priority over any duplicate copy.

@@ -9,8 +9,13 @@ from ofy.match.scoring import artist_similarity, text_similarity
 
 DURATION_TOLERANCE = 2.0
 MATCH_THRESHOLD = 0.8
+# Synced lyrics are only trusted when the downloaded file is this close to the length they were timed
+# against (and to MusicBrainz's length); otherwise they're saved as plain lyrics.
+SYNCED_TOLERANCE = 1.0
+MIN_SYNCED_LINES = 5
 
 _TIMESTAMP = re.compile(r"\[\d{1,3}:\d{2}(?:[.:]\d{1,3})?\]")
+_TIMESTAMP_PARTS = re.compile(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]")
 _HEADER = re.compile(r"^\[(ar|al|ti|au|length|by|offset|re|ve|#):.*\]\s*$", re.I)
 
 
@@ -45,6 +50,42 @@ def select_search_result(results: list[dict[str, Any]], title: str, artist: str,
         return None
     ok.sort(key=lambda p: -p[0])
     return ok[0][1]
+
+
+def line_times(synced: str) -> list[list[float]]:
+    """Timestamps in seconds of every line that has text, in file order (a repeated line has several)."""
+    lines = []
+    for line in synced.splitlines():
+        stamps = list(_TIMESTAMP_PARTS.finditer(line))
+        if not stamps or not _TIMESTAMP.sub("", line).strip():
+            continue
+        lines.append([int(m.group(1)) * 60 + int(m.group(2)) + int(m.group(3) or 0) / 10 ** len(m.group(3) or "0")
+                      for m in stamps])
+    return lines
+
+
+def synced_problem(r: dict[str, Any], audio_s: float | None, mb_s: float | None, *,
+                   composite: bool = False, tolerance: float = SYNCED_TOLERANCE) -> str | None:
+    """Why the record's synced lyrics can't be trusted to be timed to this file, or None if they can."""
+    if audio_s is None:
+        return "length of the audio file unknown"
+    if composite:
+        return "audio joined from several videos"
+    d = r.get("duration")
+    if d is None or abs(float(d) - audio_s) > tolerance:
+        return f"lyrics timed for {d}s, file is {audio_s:.1f}s"
+    if mb_s is not None and abs(mb_s - audio_s) > tolerance:
+        return f"MusicBrainz length {mb_s:.1f}s, file is {audio_s:.1f}s"
+    lines = line_times(r.get("syncedLyrics") or "")
+    if len(lines) < MIN_SYNCED_LINES:
+        return f"only {len(lines)} timed lines"
+    starts = [t[0] for t in lines]
+    if any(b < a for a, b in zip(starts, starts[1:])):
+        return "timestamps out of order"
+    last = max(max(t) for t in lines)
+    if last >= audio_s:
+        return f"last line at {last:.1f}s, file is {audio_s:.1f}s"
+    return None
 
 
 def strip_timestamps(synced: str) -> str:

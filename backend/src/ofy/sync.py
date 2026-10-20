@@ -27,7 +27,7 @@ from ofy.events import hub
 
 log = logging.getLogger(__name__)
 
-SIDECARS = (".lrc", ".txt")
+SIDECARS = (".lrc",)
 MAX_LISTED = 500  # changed paths kept for display per run
 
 

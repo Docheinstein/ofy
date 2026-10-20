@@ -11,7 +11,7 @@ Search ─▶ Artist ─▶ Album (pick edition) ─▶ Download
                                          │
      yt-dlp bestaudio ─▶ ffmpeg (mp3 / m4a / opus) ─▶ tag (ID3v2.4 / MP4 / Vorbis) + cover
                                          │
-                  LRCLIB lyrics (.lrc / .txt sidecar + embedded) ─▶ atomic move into library
+                  LRCLIB lyrics (.lrc sidecar when well-timed + embedded) ─▶ atomic move into library
 ```
 
 * **Backend**: Python 3.12+, FastAPI, SQLModel/SQLite, httpx, ytmusicapi, yt-dlp (as a library), ffmpeg,
@@ -252,7 +252,7 @@ numbered files.
 * The **library scanner** runs at startup and from the Library page's **Rescan** button. It walks the
   library, reads MusicBrainz ids from tags for unknown files, and reconciles: deleted audio → track back
   to `none` (album becomes `partial`); moved files are followed; files added outside the app (with MBID
-  tags) are adopted; `.lrc`/`.txt` sidecars added or removed update the lyrics status.
+  tags) are adopted; `.lrc` sidecars added or removed update the lyrics status.
 * **Refresh tags** (album page) re-fetches the release from MusicBrainz (bypassing the cache) and
   rewrites tags in place — no YouTube access, the audio stream is untouched. If the new metadata
   renders to a different path, the file and its sidecars are moved.
@@ -278,7 +278,7 @@ destination and runs the transfer:
   helper (`<data dir>/sync/askpass`, which reads it from the environment), so this needs OpenSSH 8.4+
   on this computer. New host keys are accepted on first connect. **Test connection** creates the
   folder and checks that the remote has `rsync`.
-* **Transfer**: `rsync` (needed on both ends) copies the selected audio files and their `.lrc`/`.txt`
+* **Transfer**: `rsync` (needed on both ends) copies the selected audio files and their `.lrc`
   sidecars, keeping the library's folder layout. Ofy mirrors the selection as a tree of symlinks in
   `<data dir>/sync/stage` and rsyncs that with `--copy-links`, so only changed files are sent. With
   **Mirror the selection** on (default) files in the destination that aren't selected are deleted —
@@ -288,20 +288,30 @@ destination and runs the transfer:
 
 ## Lyrics behaviour
 
-1. After tagging, `GET {LRCLIB}/api/get?artist_name=…&track_name=…&album_name=…&duration=…` (duration in
-   seconds, from MusicBrainz).
+1. After tagging, the real length of the downloaded file is read, and
+   `GET {LRCLIB}/api/get?artist_name=…&track_name=…&album_name=…&duration=…` is called with it (in
+   seconds; MusicBrainz's length only if the file's can't be read).
 2. On 404 (or an empty record), `GET /api/search` and accept the best result whose **duration is within
-   ±2 s** and whose title **and** artist fuzzy-match ≥ 0.8 (synced results preferred).
-3. Result handling:
-   * `syncedLyrics` (and *prefer synced* on) → `<same basename>.lrc` next to the audio, with
-     `[ar:]`, `[al:]`, `[ti:]` and `[length:mm:ss]` headers → status **synced**;
-   * else `plainLyrics` → `<same basename>.txt` → status **plain**;
+   ±2 s** and whose title **and** artist fuzzy-match ≥ 0.8 (synced results preferred). The search also
+   runs when the `/api/get` record's synced lyrics aren't trusted (see 3), looking for an entry that is.
+3. Synced lyrics are **trusted** only if all of these hold, otherwise they're treated as plain lyrics:
+   * the file's real length is within **±1 s** of LRCLIB's duration, and of MusicBrainz's length when known;
+   * the audio comes from a single YouTube video (not several joined);
+   * at least 5 timed lines, in order, the last one before the end of the file.
+4. Result handling:
+   * trusted `syncedLyrics` (and *prefer synced* on) → `<same basename>.lrc` next to the audio, with
+     `[ar:]`, `[al:]`, `[ti:]` and `[length:mm:ss]` (the file's real length) headers → status **synced**;
+   * else plain lyrics → **no sidecar**, only embedded in the tags (players such as Poweramp read them
+     there) → status **plain** (or **none** with *embed in tags* off, as nothing is saved);
    * `instrumental: true` → nothing saved, status **instrumental**;
    * nothing acceptable → status **not_found**.
-4. With *embed in tags* on, the plain text is embedded (ID3 `USLT`, MP4 `©lyr`, Vorbis `LYRICS`); for
-   synced-only results the timestamps are stripped.
+
+   With *embed in tags* on, the plain text is always embedded (ID3 `USLT`, MP4 `©lyr`, Vorbis `LYRICS`);
+   for synced-only results the timestamps are stripped. `.txt` sidecars written by older versions are
+   removed whenever a track's lyrics are saved again.
 5. Lyrics are **best effort**: network errors, timeouts or HTTP errors are logged, the track still
-   completes as `done` (status stays `none`), and existing sidecars are never deleted because of an error.
+   completes as `done` (status stays `none`), and existing sidecars and embedded lyrics are never
+   removed because of an error.
 6. Requests carry the Ofy User-Agent and are throttled (≥ 0.5 s apart).
 7. "Fetch lyrics again" (track drawer) and "Fetch missing lyrics" (album page, Library page) retry
    tracks whose status is `none` or `not_found`.

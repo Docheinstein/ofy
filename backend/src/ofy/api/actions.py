@@ -215,11 +215,15 @@ def lyrics_for_recording(recording_id: str) -> dict[str, Any]:
         if not t.file_path:
             continue
         audio = Path(t.file_path)
-        lrc, txt = audio.with_suffix(".lrc"), audio.with_suffix(".txt")
+        lrc = audio.with_suffix(".lrc")
         if lrc.is_file():
             return {"status": "synced", "synced": lrc.read_text(encoding="utf-8", errors="replace"), "plain": None}
-        if txt.is_file():
-            return {"status": "plain", "synced": None, "plain": txt.read_text(encoding="utf-8", errors="replace")}
+        try:
+            plain = writers.get_lyrics(audio) if audio.is_file() else None
+        except Exception:
+            plain = None
+        if plain:
+            return {"status": "plain", "synced": None, "plain": plain}
         return {"status": t.lyrics_status, "synced": None, "plain": None}
     return {"status": "none", "synced": None, "plain": None}
 
