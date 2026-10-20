@@ -271,10 +271,13 @@ keep them on another computer. Selecting an artist or album covers everything be
 tracks downloaded later; children of a selected parent show as included. The **Sync** page holds the
 destination and runs the transfer:
 
-* **Destination**: host (name/IP), user, SSH port, folder and an optional SSH key. Leave the host empty
-  to sync to a local folder instead (a mounted drive, a USB stick…). Login must work without a
-  password (`ssh-copy-id user@host`); new host keys are accepted on first connect. **Test connection**
-  creates the folder and checks that the remote has `rsync`.
+* **Destination**: host (name/IP), user, password, SSH port, folder and an optional SSH key. Leave the
+  host empty to sync to a local folder instead (a mounted drive, a USB stick…). Log in with an SSH key
+  (`ssh-copy-id user@host`) or a password. The password is stored in plain text in the database, and
+  `GET /api/settings` only returns a mask for it. `ssh` gets the password through an `SSH_ASKPASS`
+  helper (`<data dir>/sync/askpass`, which reads it from the environment), so this needs OpenSSH 8.4+
+  on this computer. New host keys are accepted on first connect. **Test connection** creates the
+  folder and checks that the remote has `rsync`.
 * **Transfer**: `rsync` (needed on both ends) copies the selected audio files and their `.lrc`/`.txt`
   sidecars, keeping the library's folder layout. Ofy mirrors the selection as a tree of symlinks in
   `<data dir>/sync/stage` and rsyncs that with `--copy-links`, so only changed files are sent. With

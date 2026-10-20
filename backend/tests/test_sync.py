@@ -1,4 +1,5 @@
 import shutil
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -92,6 +93,51 @@ def test_rsync_command_over_ssh(tmp_path):
     assert cmd[-1] == "[fe80::1]:/srv/music/"
     with pytest.raises(sync.SyncError):
         sync.rsync_command(Settings(sync_host="nas"), tmp_path, dry_run=False)
+
+
+def test_password_login_goes_through_askpass(tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(sync, "env", SimpleNamespace(data_dir=tmp_path / "data"))
+    s = Settings(sync_host="nas.local", sync_path="Music", sync_password="s3cr'et $x")
+    ssh = sync.rsync_command(s, tmp_path, dry_run=False)[-3]
+    assert "BatchMode" not in ssh and "NumberOfPasswordPrompts=1" in ssh
+    extra = sync.ssh_env(s)
+    assert extra["SSH_ASKPASS_REQUIRE"] == "force" and "s3cr" not in Path(extra["SSH_ASKPASS"]).read_text()
+    out = subprocess.run([extra["SSH_ASKPASS"], "Password:"], env=extra, capture_output=True, text=True, check=True)
+    assert out.stdout == "s3cr'et $x\n"
+    assert sync.ssh_env(Settings(sync_host="nas.local")) == {}
+    assert sync.ssh_env(Settings(sync_password="x")) == {}  # local folder: no ssh
+
+
+def test_explain_permission_denied():
+    keys_only = "me@nas: Permission denied (publickey)."
+    both = "me@nas: Permission denied (publickey,password)."
+    assert "ssh-copy-id" in sync._explain(keys_only, Settings(sync_password="x"))
+    assert "check the user and password" in sync._explain(both, Settings(sync_password="x"))
+    assert "set the password" in sync._explain(both, Settings())
+
+
+def test_api_never_returns_the_password(tmp_db):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from ofy.api import settings as settings_api
+    from ofy.config import PASSWORD_MASK
+    from ofy.db import load_settings
+
+    app = FastAPI()
+    app.include_router(settings_api.router)
+    with TestClient(app) as c:
+        assert c.get("/api/settings").json()["sync_password"] == ""
+        body = {**c.get("/api/settings").json(), "sync_password": "hunter2"}
+        assert c.put("/api/settings", json=body).json()["sync_password"] == PASSWORD_MASK
+        got = c.get("/api/settings").json()
+        assert got["sync_password"] == PASSWORD_MASK
+        c.put("/api/settings", json={**got, "concurrency": 3})  # the mask round-trips: password kept
+        assert load_settings().sync_password == "hunter2" and load_settings().concurrency == 3
+        c.put("/api/settings", json={**got, "sync_password": ""})
+        assert load_settings().sync_password == ""
 
 
 def test_parse_rsync_output():

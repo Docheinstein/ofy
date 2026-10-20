@@ -106,6 +106,10 @@ class Env:
 env = Env()
 
 
+# Stands in for a saved password in API responses; sending it back keeps the saved password.
+PASSWORD_MASK = "••••••••"
+
+
 class Settings(BaseModel):
     """User-editable settings; stored as JSON in the database."""
 
@@ -127,6 +131,7 @@ class Settings(BaseModel):
     sync_port: int = Field(default=22, ge=1, le=65535)
     sync_path: str = ""
     sync_ssh_key: str = ""
+    sync_password: str = ""  # stored in plain text; the API only ever returns PASSWORD_MASK for it
     sync_delete: bool = True
 
     @field_validator("path_template")

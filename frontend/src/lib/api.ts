@@ -52,6 +52,8 @@ export interface Settings {
   sync_port: number;
   sync_path: string;
   sync_ssh_key: string;
+  /** "" or a mask standing in for the saved password; sending the mask back keeps it. */
+  sync_password: string;
   sync_delete: boolean;
 }
 

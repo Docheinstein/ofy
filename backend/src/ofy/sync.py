@@ -114,11 +114,32 @@ def _target(settings: Settings) -> str:
 
 
 def ssh_command(settings: Settings) -> list[str]:
-    cmd = ["ssh", "-p", str(settings.sync_port), "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
+    # Without a password nothing can answer a prompt: BatchMode fails at once instead of waiting.
+    auth = ["NumberOfPasswordPrompts=1"] if settings.sync_password else ["BatchMode=yes"]
+    cmd = ["ssh", "-p", str(settings.sync_port), "-o", auth[0], "-o", "ConnectTimeout=10",
            "-o", "StrictHostKeyChecking=accept-new"]
     if settings.sync_ssh_key.strip():
         cmd += ["-i", str(Path(settings.sync_ssh_key.strip()).expanduser())]
     return cmd
+
+
+ASKPASS = '#!{sh}\nprintf \'%s\\n\' "$OFY_SSH_PASSWORD"\n'
+
+
+def ssh_env(settings: Settings) -> dict[str, str]:
+    """Environment for ssh (and rsync's ssh): with a password, ssh asks SSH_ASKPASS for it.
+
+    ssh only reads passwords from a terminal, which the app doesn't have; SSH_ASKPASS_REQUIRE=force
+    (OpenSSH 8.4+) makes it run the helper instead, which prints the password passed in the
+    environment, so the password never lands on disk or on a command line.
+    """
+    if not settings.sync_password or not settings.sync_host.strip():
+        return {}
+    helper = env.data_dir / "sync" / "askpass"
+    helper.parent.mkdir(parents=True, exist_ok=True)
+    helper.write_text(ASKPASS.format(sh=shutil.which("sh") or "/bin/sh"))
+    helper.chmod(0o700)
+    return {"SSH_ASKPASS": str(helper), "SSH_ASKPASS_REQUIRE": "force", "OFY_SSH_PASSWORD": settings.sync_password}
 
 
 def rsync_command(settings: Settings, source: Path, dry_run: bool) -> list[str]:
@@ -144,10 +165,18 @@ def _require(tool: str) -> None:
         raise SyncError(f"'{tool}' is not installed on this computer")
 
 
-def _explain(stderr: str) -> str:
+def _explain(stderr: str, settings: Settings) -> str:
     msg = stderr.strip().splitlines()[-1] if stderr.strip() else "failed"
-    if "Permission denied" in stderr and "publickey" in stderr:
-        msg += " — the remote needs SSH key login (e.g. run: ssh-copy-id user@host)"
+    if "Permission denied (" in stderr:
+        methods = stderr.split("Permission denied (", 1)[1].split(")", 1)[0]
+        if "password" not in methods and "keyboard-interactive" not in methods:
+            msg += " — the remote only accepts SSH keys (set one up with: ssh-copy-id user@host)"
+        elif settings.sync_password:
+            msg += " — check the user and password"
+        else:
+            msg += " — set the password, or set up SSH key login (ssh-copy-id user@host)"
+    elif "SSH_ASKPASS" in stderr or "can't open /dev/tty" in stderr:
+        msg += " — password login needs OpenSSH 8.4 or newer on this computer"
     elif "rsync: command not found" in stderr or "rsync: not found" in stderr:
         msg += " — install rsync on the remote"
     return msg
@@ -169,7 +198,9 @@ async def test_connection(settings: Settings) -> dict[str, Any]:
     remote = f"mkdir -p -- {q} && test -w {q} && command -v rsync >/dev/null || {{ echo 'rsync: not found' >&2; exit 1; }}"
     proc = await asyncio.create_subprocess_exec(
         *ssh_command(settings), _target(settings), remote,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL)
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL,
+        # A password is asked through SSH_ASKPASS only: detach from any terminal so ssh never prompts in it.
+        env={**os.environ, **ssh_env(settings)}, start_new_session=bool(settings.sync_password))
     try:
         _, err = await asyncio.wait_for(proc.communicate(), 30)
     except TimeoutError:
@@ -177,7 +208,7 @@ async def test_connection(settings: Settings) -> dict[str, Any]:
         return {"ok": False, "message": "Timed out connecting"}
     if proc.returncode == 0:
         return {"ok": True, "message": f"Connected to {_target(settings)}; {path} is ready"}
-    return {"ok": False, "message": _explain(err.decode(errors="replace"))}
+    return {"ok": False, "message": _explain(err.decode(errors="replace"), settings)}
 
 
 # --- running a sync ---------------------------------------------------------------------------
@@ -256,7 +287,7 @@ async def _run(settings: Settings, dry_run: bool) -> None:
         log.info("sync: %s", shlex.join(cmd))
         _proc = await asyncio.create_subprocess_exec(
             *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL,
-            env={**os.environ, "LC_ALL": "C"})
+            env={**os.environ, "LC_ALL": "C", **ssh_env(settings)}, start_new_session=bool(settings.sync_password))
         stderr_task = asyncio.create_task(_proc.stderr.read())  # type: ignore[union-attr]
         buf = ""
         while chunk := await _proc.stdout.read(4096):  # type: ignore[union-attr]
@@ -273,7 +304,7 @@ async def _run(settings: Settings, dry_run: bool) -> None:
         elif code in (-15, 20):  # terminated / SIGTERM received by rsync
             state.ok, state.error = False, "Cancelled"
         else:
-            state.ok, state.error = False, _explain(err)
+            state.ok, state.error = False, _explain(err, settings)
     except SyncError as e:
         state.ok, state.error = False, str(e)
     except Exception as e:

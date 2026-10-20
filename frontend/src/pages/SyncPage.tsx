@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
-type SyncSettings = Pick<Settings, "sync_host" | "sync_user" | "sync_port" | "sync_path" | "sync_ssh_key" | "sync_delete">;
+type SyncSettings = Pick<Settings, "sync_host" | "sync_user" | "sync_port" | "sync_path" | "sync_ssh_key" | "sync_password" | "sync_delete">;
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -79,6 +79,16 @@ function Destination() {
           <Field label="User">
             <Input value={form.sync_user} placeholder="Same as here" onChange={(e) => set("sync_user", e.target.value)} />
           </Field>
+          <Field label="Password" hint="Leave empty to log in with an SSH key. Saved on this computer in plain text.">
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={form.sync_password}
+              placeholder="SSH key login"
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => set("sync_password", e.target.value)}
+            />
+          </Field>
           <Field label="SSH port">
             <Input type="number" min={1} max={65535} value={form.sync_port} onChange={(e) => set("sync_port", Number(e.target.value))} />
           </Field>
@@ -88,7 +98,7 @@ function Destination() {
         <Input value={form.sync_path} placeholder={local ? "/media/usb/Music" : "~/Music/Ofy"} onChange={(e) => set("sync_path", e.target.value)} data-testid="sync-path" />
       </Field>
       {!local && (
-        <Field label="SSH key" hint="Optional; defaults to your usual SSH keys. Password login isn't supported: set up a key with ssh-copy-id.">
+        <Field label="SSH key" hint="Optional; defaults to your usual SSH keys. Without a password, set up a key with ssh-copy-id.">
           <Input value={form.sync_ssh_key} placeholder="~/.ssh/id_ed25519" onChange={(e) => set("sync_ssh_key", e.target.value)} />
         </Field>
       )}
