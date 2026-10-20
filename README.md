@@ -37,7 +37,6 @@ make run            # open the desktop app (builds first if anything is missing 
 | `make test` | Runs the backend unit tests |
 | `make run` | Desktop app (native window). Extra args go to `ofy-desktop` via `ARGS`, e.g. `make run ARGS=--debug` |
 | `make web [PORT=8080]` | Web server only; UI at http://localhost:8080 |
-| `make dev` | Backend with auto-reload on :8080 + Vite dev server with hot reload on http://localhost:5173 (proxies `/api`); Ctrl-C stops both |
 | `make help` | Lists the targets |
 
 `make run` and `make web` rebuild automatically when the virtualenv or `node_modules` is missing or
@@ -99,8 +98,8 @@ The desktop window (`ofy-desktop`) isn't available on Android.
 
 ## Development
 
-`make dev` is the usual loop: edit Python under `backend/src` or TypeScript under `frontend/src` and
-both reload. The individual pieces, if you prefer separate terminals:
+For live reload while editing, run the backend and the Vite dev server in two terminals: Python under
+`backend/src` and TypeScript under `frontend/src` reload on save.
 
 ```bash
 cd backend && uv run uvicorn ofy.main:app --port 8080 --reload --reload-dir src

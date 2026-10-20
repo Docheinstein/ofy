@@ -35,7 +35,7 @@ build-backend = "uv_build"
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
-    "watchfiles>=1.3.0",  # uvicorn --reload (make dev)
+    "watchfiles>=1.3.0",  # uvicorn --reload (see README, Development)
 ]
 
 [tool.pytest.ini_options]

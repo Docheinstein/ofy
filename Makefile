@@ -19,7 +19,7 @@ DIST := frontend/dist/index.html
 FRONTEND_SRC := $(shell find frontend/src frontend/public -type f) frontend/index.html \
 	frontend/package.json $(wildcard frontend/*.config.*)
 
-.PHONY: help build run web dev test clean
+.PHONY: help build run web test clean
 
 help: ## Show this help
 	@awk -F ':.*## ' '/^[a-z]+:.*## / { printf "  make %-7s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -33,17 +33,6 @@ run: build ## Desktop app (native window)
 web: build ## Web server only: UI at http://localhost:8080 (PORT=... to change)
 	@echo "Ofy web UI: http://localhost:$(PORT)"
 	cd backend && OFY_PORT=$(PORT) uv run python -m ofy
-
-# Job control puts each server in its own process group, so the trap can stop the whole tree
-# (uv -> python -> uvicorn reloader -> worker, and Vite's node process) with one signal.
-# Vite runs directly (not via `npm run`): npm doesn't reliably forward signals to it.
-dev: $(VENV) $(NODE_MODULES) ## Backend (auto-reload) on :8080 + Vite (hot reload) on http://localhost:5173; Ctrl-C stops both
-	@set -m; \
-	trap 'trap - INT TERM EXIT; kill -TERM -- -$$api -$$ui 2>/dev/null || true; wait 2>/dev/null || true' INT TERM EXIT; \
-	(cd backend && exec uv run uvicorn ofy.main:app --host 127.0.0.1 --port 8080 --reload --reload-dir src) & api=$$!; \
-	(cd frontend && exec ./node_modules/.bin/vite --host 127.0.0.1) & ui=$$!; \
-	echo "Dev UI: http://localhost:5173  (API on :8080, both reload on change; Ctrl-C to stop)"; \
-	wait -n $$api $$ui  # stop everything as soon as either exits
 
 test: $(VENV) ## Run the backend unit tests
 	cd backend && uv run pytest -q
