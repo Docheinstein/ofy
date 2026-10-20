@@ -7,7 +7,7 @@
 #   ./termux.sh               start the server and open http://localhost:8080 in the browser
 #   ./termux.sh --port 9000   same, on another port
 #
-# If the UI won't build on the phone, run ./build.sh on a computer and copy frontend/dist over.
+# If the UI won't build on the phone, run `make` on a computer and copy frontend/dist over.
 # Environment overrides: OFY_HOST (default 127.0.0.1, phone only; 0.0.0.0 to reach it over Wi-Fi),
 # OFY_LIBRARY_DIR (default shared storage Music/Ofy, after `termux-setup-storage`).
 set -euo pipefail
@@ -31,7 +31,7 @@ done
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 
 if [[ -z "${TERMUX_VERSION:-}" && ! -d /data/data/com.termux ]]; then
-  echo "error: this script is for Termux on Android; use ./build.sh and ./run.sh elsewhere." >&2
+  echo "error: this script is for Termux on Android; use make elsewhere." >&2
   exit 1
 fi
 
@@ -59,7 +59,7 @@ setup() {
   if [[ $REBUILD_UI == 1 || ! -f "$ROOT/frontend/dist/index.html" ]]; then
     step "Frontend: build"
     if ! (cd "$ROOT/frontend" && npm ci && npm run build); then
-      echo "warning: the UI didn't build on this device. Run ./build.sh on a computer and copy" >&2
+      echo "warning: the UI didn't build on this device. Run make on a computer and copy" >&2
       echo "         frontend/dist into $ROOT/frontend/dist, then ./termux.sh" >&2
       exit 1
     fi

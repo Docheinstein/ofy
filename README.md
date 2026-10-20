@@ -14,7 +14,7 @@ Search ─▶ Artist ─▶ Album (pick edition) ─▶ Download
                   LRCLIB lyrics (.lrc / .txt sidecar + embedded) ─▶ atomic move into library
 ```
 
-* **Backend**: Python 3.12, FastAPI, SQLModel/SQLite, httpx, ytmusicapi, yt-dlp (as a library), ffmpeg,
+* **Backend**: Python 3.12+, FastAPI, SQLModel/SQLite, httpx, ytmusicapi, yt-dlp (as a library), ffmpeg,
   mutagen, rapidfuzz — managed with `uv`.
 * **Frontend**: React + TypeScript + Vite + Tailwind + shadcn/ui-style components + TanStack Query.
 
@@ -22,25 +22,26 @@ Search ─▶ Artist ─▶ Album (pick edition) ─▶ Download
 
 ## Quick start
 
-Requirements: Python 3.12, [uv](https://docs.astral.sh/uv/), Node 18+, ffmpeg (and ideally `deno` or
+Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 18+, GNU make, ffmpeg (and ideally `deno` or
 Node ≥ 20 on `PATH` for yt-dlp, see [Updating yt-dlp](#updating-yt-dlp)).
 
 ```bash
-./build.sh          # install backend + frontend dependencies and build the UI
-./run.sh            # open the desktop app (builds first if anything is missing or out of date)
+make build          # install backend + frontend dependencies and build the UI
+make run            # open the desktop app (builds first if anything is missing or out of date)
 ```
 
 | Command | What it does |
 |---|---|
-| `./build.sh` | `uv sync` (backend) + `npm ci` (frontend, skipped when up to date) + `npm run build` |
-| `./build.sh --clean` | Same, after deleting `backend/.venv`, `frontend/node_modules` and `frontend/dist` |
-| `./build.sh --test` | Same, then runs the backend unit tests |
-| `./run.sh` | Desktop app (native window). Extra args go to `ofy-desktop`, e.g. `./run.sh desktop --debug` |
-| `./run.sh web [--port 8080]` | Web server only; UI at http://localhost:8080 |
-| `./run.sh dev` | Backend with auto-reload on :8080 + Vite dev server with hot reload on http://localhost:5173 (proxies `/api`); Ctrl-C stops both |
+| `make` / `make build` | `uv sync` (backend) + `npm ci` (frontend) + `npm run build`, each only when out of date |
+| `make clean` | Deletes `backend/.venv`, `frontend/node_modules` and `frontend/dist` |
+| `make test` | Runs the backend unit tests |
+| `make run` | Desktop app (native window). Extra args go to `ofy-desktop` via `ARGS`, e.g. `make run ARGS=--debug` |
+| `make web [PORT=8080]` | Web server only; UI at http://localhost:8080 |
+| `make dev` | Backend with auto-reload on :8080 + Vite dev server with hot reload on http://localhost:5173 (proxies `/api`); Ctrl-C stops both |
+| `make help` | Lists the targets |
 
-`run.sh` rebuilds automatically when the virtualenv or `node_modules` is missing or older than its
-lockfile, or (for `desktop`/`web`) when any UI source is newer than `frontend/dist`. To add Ofy to
+`make run` and `make web` rebuild automatically when the virtualenv or `node_modules` is missing or
+older than its lockfile, or when any UI source is newer than `frontend/dist`. To add Ofy to
 your app menu: `cd backend && uv run ofy-desktop --install-shortcut`.
 
 ### Desktop app
@@ -76,7 +77,7 @@ JSON report and exits; use it to diagnose a machine.
 ### Web server mode
 
 The same app also runs as a plain web server (e.g. on a home server, used from any browser):
-`./run.sh web`, or directly `cd backend && uv run python -m ofy` (UI on http://localhost:8080).
+`make web`, or directly `cd backend && uv run python -m ofy` (UI on http://localhost:8080).
 
 ### Android (Termux)
 
@@ -89,14 +90,14 @@ termux-setup-storage    # once: lets the library live in shared storage (Music/O
 ```
 
 The first setup is slow: Termux has no prebuilt wheels, so pydantic-core (Rust), rapidfuzz and a
-few C extensions are compiled on the phone. If the UI won't build there, run `./build.sh` on a
+few C extensions are compiled on the phone. If the UI won't build there, run `make` on a
 computer and copy `frontend/dist` over. The server listens on localhost only (set `OFY_HOST=0.0.0.0`
 to reach it over Wi-Fi) and holds a Termux wake lock while running so downloads aren't suspended.
 The desktop window (`ofy-desktop`) isn't available on Android.
 
 ## Development
 
-`./run.sh dev` is the usual loop: edit Python under `backend/src` or TypeScript under `frontend/src` and
+`make dev` is the usual loop: edit Python under `backend/src` or TypeScript under `frontend/src` and
 both reload. The individual pieces, if you prefer separate terminals:
 
 ```bash

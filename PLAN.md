@@ -3,7 +3,7 @@ downloading songs/albums offline from YouTube Music, tagging them fully with Mus
 and fetching lyrics from LRCLIB.
 
 STACK (do not deviate without asking):
-- Backend: Python 3.12, FastAPI (async), uv for deps, SQLite via SQLModel, httpx, ytmusicapi,
+- Backend: Python 3.12+, FastAPI (async), uv for deps, SQLite via SQLModel, httpx, ytmusicapi,
   yt-dlp (as a library, not subprocess), ffmpeg, mutagen, rapidfuzz. pytest for tests.
 - Frontend: React + TypeScript + Vite + Tailwind + shadcn/ui + TanStack Query. Dark Spotify-like theme.
 - Desktop shell: pywebview (native OS webview window; GTK/WebKit on Linux, optional Qt backend).
