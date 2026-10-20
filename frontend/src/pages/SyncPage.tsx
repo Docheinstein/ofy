@@ -34,9 +34,9 @@ export function SyncPage() {
           or to a folder such as a mounted drive.
         </p>
       </div>
-      <Destination />
-      <Selection />
       <Run />
+      <Selection />
+      <Destination />
     </div>
   );
 }
