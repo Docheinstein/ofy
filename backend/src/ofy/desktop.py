@@ -263,6 +263,9 @@ def main(argv: list[str] | None = None) -> int:
     if gui in (None, "gtk") and sys.platform.startswith("linux"):
         if ensure_gtk_bindings(env.data_dir / "gtk-bindings"):
             gui = gui or "gtk"
+            # WebKitGTK's DMA-BUF renderer crashes the window on NVIDIA under Wayland ("Error 71
+            # (Protocol error) dispatching to Wayland display"); the fallback is barely slower.
+            os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
         elif gui == "gtk":
             print("GTK bindings not found: install python3-gi and gir1.2-webkit2-4.1 "
                   "(or use --gui qt after `uv sync --extra qt`)", file=sys.stderr)

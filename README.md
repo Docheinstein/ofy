@@ -66,7 +66,9 @@ launcher reuses the distro's bindings (only `gi`/`cairo` are linked into the vir
 sudo apt install python3-gi gir1.2-webkit2-4.1 gstreamer1.0-libav gstreamer1.0-plugins-good   # Debian/Ubuntu
 ```
 
-`gstreamer1.0-libav` provides AAC/MP3 decoding for the player. Without GTK, use the Qt backend instead:
+`gstreamer1.0-libav` provides AAC/MP3 decoding for the player. The launcher sets
+`WEBKIT_DISABLE_DMABUF_RENDERER=1` unless it's already set (WebKitGTK's DMA-BUF renderer crashes on
+NVIDIA under Wayland). Without GTK, use the Qt backend instead:
 `uv sync --extra qt && uv run ofy-desktop --gui qt`. macOS (WebKit) and Windows (Edge WebView2)
 need nothing extra.
 
