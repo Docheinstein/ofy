@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDownCircle, CheckCircle2, Loader2, Play, Search } from "lucide-react";
 import { api, coverUrl, type SearchResult, type TrackHit } from "@/lib/api";
@@ -13,6 +14,9 @@ import { Cover } from "@/components/Cover";
 
 type Kind = "all" | "artist" | "album" | "track";
 
+/** The query string of the last search, so the Search tab can bring it back after visiting other pages. */
+export let lastSearch = "";
+
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
@@ -23,6 +27,9 @@ export function SearchPage() {
     queryFn: () => api.get<SearchResult>(`/api/search?q=${encodeURIComponent(dq)}&type=${kind}`),
     enabled: dq.length > 0,
   });
+  useEffect(() => {
+    lastSearch = params.toString();
+  }, [params]);
   const update = (next: Record<string, string>) => {
     const p = new URLSearchParams(params);
     Object.entries(next).forEach(([k, v]) => (v ? p.set(k, v) : p.delete(k)));

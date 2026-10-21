@@ -1,8 +1,9 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, FolderSync, Library, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHistoryNav } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
+import { lastSearch } from "@/pages/SearchPage";
 
 const items = [
   { to: "/search", label: "Search", icon: Search },
@@ -12,8 +13,15 @@ const items = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+/** The nav targets; Search links back to the last search rather than an empty one. Re-read on every navigation. */
+function useNavItems() {
+  useLocation();
+  return items.map((it) => (it.to === "/search" && lastSearch ? { ...it, to: `/search?${lastSearch}` } : it));
+}
+
 /** Narrower windows (below `lg`) get just the icons. */
 export function Sidebar() {
+  const navItems = useNavItems();
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-2 max-lg:w-16">
       <div className="rounded-lg bg-surface px-3 py-4">
@@ -24,7 +32,7 @@ export function Sidebar() {
           <HistoryArrows />
         </div>
         <nav className="flex flex-col gap-1">
-          {items.map(({ to, label, icon: Icon }) => (
+          {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -49,9 +57,10 @@ export function Sidebar() {
 
 /** The sidebar of phone-sized windows: a tab bar at the bottom of the screen. */
 export function BottomNav() {
+  const navItems = useNavItems();
   return (
     <nav className="grid shrink-0 grid-cols-5 bg-black pb-[env(safe-area-inset-bottom)]" data-testid="bottom-nav">
-      {items.map(({ to, label, icon: Icon }) => (
+      {navItems.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}
