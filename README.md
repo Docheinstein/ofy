@@ -93,6 +93,7 @@ git clone https://github.com/Docheinstein/ofy.git && cd ofy
 termux-setup-storage    # once: lets the library live in shared storage (Music/Ofy)
 make                    # installs the Termux packages, the backend venv (with pip) and the UI build
 make web                # starts the server and opens http://localhost:8080 (`make run` does the same)
+make install            # optional: an `ofy` command in $PREFIX/bin (no root needed) that does the same from anywhere
 ```
 
 The first `make` is slow: Termux has no prebuilt wheels, so pydantic-core (Rust), rapidfuzz and a

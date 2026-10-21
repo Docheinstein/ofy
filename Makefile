@@ -18,7 +18,8 @@ ARGS ?=
 PORT ?= 8080
 
 TERMUX := $(if $(or $(TERMUX_VERSION),$(wildcard /data/data/com.termux)),1)
-BINDIR ?= $(if $(TERMUX),$(PREFIX)/bin,$(HOME)/.local/bin)
+# Termux's own bin directory is the user's, so no root is needed there
+BINDIR ?= $(if $(TERMUX),$(or $(PREFIX),/data/data/com.termux/files/usr)/bin,$(HOME)/.local/bin)
 
 VENV := backend/.venv
 NODE_MODULES := frontend/node_modules/.package-lock.json
@@ -63,9 +64,10 @@ endif
 
 # The command is a small script pointing back at this checkout, so it always runs the current code and
 # rebuilds whatever is out of date first. Its arguments become ARGS, e.g. `ofy --debug`.
-install: build ## Install an `ofy` command in BINDIR (default ~/.local/bin) that does make run from anywhere
+install: build ## Install an `ofy` command in BINDIR (~/.local/bin; $PREFIX/bin on Termux) that does make run from anywhere
 	mkdir -p "$(BINDIR)"
-	printf '%s\n' '#!/usr/bin/env bash' \
+	@# bash by its full path: Android has no /usr/bin/env
+	printf '%s\n' '#!$(shell command -v bash)' \
 	  '# Installed by `make install` in $(CURDIR): runs `make run` there.' \
 	  'args=; (( $$# )) && args=$$(printf "%q " "$$@")' \
 	  'exec make --no-print-directory -s -C "$(CURDIR)" run ARGS="$$args"' \
