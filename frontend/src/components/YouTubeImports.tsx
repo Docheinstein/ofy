@@ -53,13 +53,13 @@ export function YouTubeImports() {
           <Input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste a link to a YouTube video or playlist"
+            placeholder="Link to a YouTube video or playlist"
             className="h-10 pl-9"
             data-testid="yt-url"
           />
         </div>
         <Button type="submit" className="h-10" disabled={!url.trim() || start.isPending} data-testid="yt-download">
-          {start.isPending ? <Loader2 className="animate-spin" /> : <Download />} Download
+          {start.isPending ? <Loader2 className="animate-spin" /> : <Download />} <span className="max-md:hidden">Download</span>
         </Button>
       </form>
       <p className="mt-1.5 text-xs text-muted-foreground">
@@ -101,7 +101,7 @@ function Batch({ items, onChange }: { items: YTImport[]; onChange: () => void })
   return (
     <div className="mt-4" data-testid="yt-batch">
       {playlist && (
-        <button type="button" onClick={() => setOpen(!open)} className="mb-1 flex w-full items-center gap-2 px-3 text-left text-sm">
+        <button type="button" onClick={() => setOpen(!open)} className="mb-1 flex w-full items-center gap-2 px-3 text-left text-sm max-md:px-1">
           <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !open && "-rotate-90")} />
           <span className="truncate font-semibold">{items[0].batch_title || "Playlist"}</span>
           <span className="shrink-0 text-muted-foreground">
@@ -129,7 +129,7 @@ function Item({ imp, onChange }: { imp: YTImport; onChange: () => void }) {
 
   return (
     <div className="rounded-md hover:bg-elevated/50" data-testid="yt-item" data-status={imp.status}>
-      <div className="group flex items-center gap-3 px-3 py-2">
+      <div className="group flex items-center gap-3 px-3 py-2 max-md:gap-2 max-md:px-1">
         <Cover src={cover} className="h-10 w-10" rounded="rounded" />
         <div className="min-w-0 flex-1">
           {t ? (
@@ -163,7 +163,7 @@ function Item({ imp, onChange }: { imp: YTImport; onChange: () => void }) {
           target="_blank"
           rel="noreferrer"
           title={`On YouTube: ${imp.title}`}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <ExternalLink className="h-4 w-4" />
         </a>
@@ -172,7 +172,7 @@ function Item({ imp, onChange }: { imp: YTImport; onChange: () => void }) {
           onClick={remove}
           aria-label="Remove from the list"
           title="Remove from the list"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
         >
           <X className="h-4 w-4" />
         </button>
@@ -257,7 +257,7 @@ function Chooser({ imp, onChosen }: { imp: YTImport; onChosen: () => void }) {
     ));
 
   return (
-    <div className="mx-3 mb-3 ml-16 rounded-md border p-2" data-testid="yt-chooser">
+    <div className="mx-3 mb-3 ml-16 rounded-md border p-2 max-md:mx-1 max-md:ml-1" data-testid="yt-chooser">
       {imp.candidates.length > 0 && (
         <>
           <div className="px-2 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Closest on MusicBrainz</div>

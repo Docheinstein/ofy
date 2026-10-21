@@ -92,8 +92,8 @@ export function TagEditor({ trackId, fields, editable }: { trackId: string; fiel
       <div className="space-y-1.5">
         {rows.length === 0 && <p className="text-sm text-muted-foreground">This file has no tags.</p>}
         {rows.map((r) => (
-          <div key={r.name} className="grid grid-cols-[9.5rem_1fr_2rem] items-center gap-2">
-            <label htmlFor={`tag-${r.name}`} className="truncate text-xs font-medium text-muted-foreground" title={r.name}>
+          <div key={r.name} className="grid grid-cols-[9.5rem_1fr_2rem] items-center gap-2 max-sm:grid-cols-[1fr_2rem] max-sm:gap-x-1 max-sm:gap-y-0.5">
+            <label htmlFor={`tag-${r.name}`} className="truncate text-xs font-medium text-muted-foreground max-sm:col-span-2" title={r.name}>
               {label(r.name)}
             </label>
             <Input
@@ -112,7 +112,7 @@ export function TagEditor({ trackId, fields, editable }: { trackId: string; fiel
       </div>
       <p className="text-xs text-muted-foreground">Separate multiple values with “;”. Retagging the album from MusicBrainz overwrites these edits.</p>
       {/* kept in view while scrolling through a long list of tags */}
-      <div className="sticky -bottom-6 -mx-6 space-y-2 border-t bg-surface px-6 py-3">
+      <div className="sticky -bottom-6 -mx-6 space-y-2 border-t bg-surface px-6 py-3 max-sm:-bottom-4 max-sm:-mx-4 max-sm:px-4">
         {save.error && <p className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">{save.error.message}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" size="sm" disabled={!dirty || save.isPending}>

@@ -36,8 +36,8 @@ export function SettingsPage() {
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm({ ...form, [k]: v });
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <h1 className="mb-8 text-3xl font-extrabold">Settings</h1>
+    <div className="mx-auto max-w-3xl p-8 max-md:p-4">
+      <h1 className="mb-8 text-3xl font-extrabold max-md:mb-6 max-md:text-2xl">Settings</h1>
       <form
         className="space-y-10"
         onSubmit={(e) => {

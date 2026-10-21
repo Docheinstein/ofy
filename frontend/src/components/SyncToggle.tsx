@@ -14,11 +14,13 @@ interface Props {
   variant?: "button" | "icon";
   /** Icon variant only: hide until the parent `group` is hovered while off. */
   hideWhenOff?: boolean;
+  /** Icon variant only: just an indicator, shown only while on (crowded touch lists, where hover can't reveal it). */
+  onlyWhenOn?: boolean;
   className?: string;
 }
 
 /** Marks an artist, album or track to be kept on the sync remote. */
-export function SyncToggle({ target, artistId, releaseId, variant = "icon", hideWhenOff, className }: Props) {
+export function SyncToggle({ target, artistId, releaseId, variant = "icon", hideWhenOff, onlyWhenOn, className }: Props) {
   const sel = useSyncSelection();
   const own = sel.has(target.kind, target.id);
   const via = own ? null : sel.inheritedFrom(target.kind === "artist" ? null : artistId, target.kind === "track" ? releaseId : null);
@@ -30,6 +32,7 @@ export function SyncToggle({ target, artistId, releaseId, variant = "icon", hide
     if (!via) sel.set(target, !own);
   };
   const Icon = on ? CloudCheck : CloudUpload;
+  if (onlyWhenOn && !on) return null;
 
   const trigger =
     variant === "button" ? (
@@ -49,7 +52,7 @@ export function SyncToggle({ target, artistId, releaseId, variant = "icon", hide
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors",
           on ? "text-primary" : "text-muted-foreground hover:text-foreground",
           via && "cursor-default opacity-60",
-          !on && hideWhenOff && "opacity-0 focus-visible:opacity-100 group-hover:opacity-100",
+          !on && hideWhenOff && "opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
           className,
         )}
       >

@@ -15,6 +15,7 @@ import { Cover } from "@/components/Cover";
 import { TrackList } from "@/components/TrackList";
 import { TrackDrawer } from "@/components/TrackDrawer";
 import { SyncToggle } from "@/components/SyncToggle";
+import { FloatingBack } from "@/components/Sidebar";
 
 export function AlbumPage() {
   const { id } = useParams();
@@ -60,13 +61,14 @@ export function AlbumPage() {
 
   return (
     <div className="pb-10">
-      <header className="relative flex items-end gap-6 overflow-hidden bg-gradient-to-b from-neutral-500/40 to-surface p-6 pt-16">
+      <FloatingBack />
+      <header className="relative flex items-end gap-6 overflow-hidden bg-gradient-to-b from-neutral-500/40 to-surface p-6 pt-16 max-md:flex-col max-md:items-stretch max-md:gap-4 max-md:px-4 max-md:pb-2 max-md:pt-14">
         <img src={cover} alt="" className="absolute inset-0 h-full w-full scale-125 object-cover opacity-25 blur-3xl" />
-        <Cover src={coverUrl("release", r.id, 500, g.id)} className="relative w-52 shrink-0 shadow-2xl" alt={r.title} />
+        <Cover src={coverUrl("release", r.id, 500, g.id)} className="relative w-52 shrink-0 shadow-2xl max-md:mx-auto max-md:w-48" alt={r.title} />
         <div className="relative min-w-0">
-          <p className="text-sm font-semibold">{g.primary_type ?? "Release"}</p>
-          <h1 className="text-4xl font-black tracking-tight md:text-6xl" data-testid="album-title">{r.title}</h1>
-          <p className="mt-4 flex flex-wrap items-center gap-x-1.5 text-sm">
+          <p className="text-sm font-semibold max-md:hidden">{g.primary_type ?? "Release"}</p>
+          <h1 className="break-words text-4xl font-black tracking-tight max-md:text-2xl md:text-6xl" data-testid="album-title">{r.title}</h1>
+          <p className="mt-4 flex flex-wrap items-center gap-x-1.5 text-sm max-md:mt-2">
             {r.artist_id ? <Link to={`/artist/${r.artist_id}`} className="font-bold hover:underline">{r.artist}</Link> : <b>{r.artist}</b>}
             <span className="text-muted-foreground">• {g.year ?? r.date?.slice(0, 4)} • {r.tracks.length} songs, {formatDuration(r.length_ms)}</span>
             <span className="ml-2"><AlbumStatusBadge status={lib.status} /></span>
@@ -76,10 +78,10 @@ export function AlbumPage() {
         </div>
       </header>
 
-      <div className="flex flex-wrap items-center gap-4 px-6 py-5">
+      <div className="flex flex-wrap items-center gap-4 px-6 py-5 max-md:gap-2 max-md:px-4 max-md:py-3">
         <button
           onClick={() => playFrom(0)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-lg transition-transform hover:scale-105"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-black shadow-lg transition-transform hover:scale-105 max-md:-order-2 max-md:h-12 max-md:w-12"
           aria-label="Play album"
         >
           <Play className="h-6 w-6 fill-current" />
@@ -88,29 +90,32 @@ export function AlbumPage() {
           variant="outline"
           onClick={() => actions.downloadAlbum.mutate(r.id)}
           disabled={actions.downloadAlbum.isPending || lib.status === "complete"}
+          className="max-md:h-8 max-md:px-3 max-md:text-xs"
           data-testid="download-album"
         >
           {actions.downloadAlbum.isPending ? <Loader2 className="animate-spin" /> : <ArrowDownCircle />}
           {lib.status === "complete" ? "Downloaded" : lib.status === "partial" ? "Download remaining" : "Download album"}
         </Button>
-        <SyncToggle variant="button" target={{ kind: "album", id: r.id, title: r.title, subtitle: r.artist }} artistId={r.artist_id} />
+        {/* phones: the edition and play on the first line, the rest below */}
+        <div className="hidden basis-full max-md:-order-1 max-md:block" />
+        <SyncToggle variant="button" className="max-md:h-8 max-md:px-3 max-md:text-xs" target={{ kind: "album", id: r.id, title: r.title, subtitle: r.artist }} artistId={r.artist_id} />
         {lib.done > 0 && (
           <>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={() => actions.retag.mutate(r.id)} disabled={actions.retag.isPending}>
-                  {actions.retag.isPending ? <Loader2 className="animate-spin" /> : <Tags />} Refresh tags
+                <Button variant="ghost" size="sm" onClick={() => actions.retag.mutate(r.id)} disabled={actions.retag.isPending} aria-label="Refresh tags" className="max-md:w-8 max-md:px-0">
+                  {actions.retag.isPending ? <Loader2 className="animate-spin" /> : <Tags />} <span className="max-md:hidden">Refresh tags</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Rewrite tags from fresh MusicBrainz data (no re-download)</TooltipContent>
             </Tooltip>
-            <Button variant="ghost" size="sm" onClick={() => actions.albumLyrics.mutate(r.id)} disabled={actions.albumLyrics.isPending}>
-              {actions.albumLyrics.isPending ? <Loader2 className="animate-spin" /> : <MicVocal />} Fetch missing lyrics
+            <Button variant="ghost" size="sm" onClick={() => actions.albumLyrics.mutate(r.id)} disabled={actions.albumLyrics.isPending} title="Fetch missing lyrics" aria-label="Fetch missing lyrics" className="max-md:w-8 max-md:px-0">
+              {actions.albumLyrics.isPending ? <Loader2 className="animate-spin" /> : <MicVocal />} <span className="max-md:hidden">Fetch missing lyrics</span>
             </Button>
           </>
         )}
-        <div className="flex-1" />
-        <div className="w-72">
+        <div className="flex-1 max-md:hidden" />
+        <div className="w-72 max-md:-order-3 max-md:w-auto max-md:min-w-0 max-md:flex-1">
           <Select
             value={r.id}
             onValueChange={(v) => {
@@ -145,7 +150,7 @@ export function AlbumPage() {
         onDownload={(t) => actions.download.mutate({ releaseId: r.id, trackId: t.track_id })}
         onRetry={(t) => actions.retry.mutate(t.track_id)}
       />
-      <div className="px-10 pt-6 text-xs text-muted-foreground">
+      <div className="px-10 pt-6 text-xs text-muted-foreground max-md:px-4">
         {r.date} {r.country && `· ${r.country}`} {r.labels.length > 0 && `· ${r.labels.join(", ")}`}
         {r.catalog_numbers.length > 0 && ` · ${r.catalog_numbers.join(", ")}`} {r.barcode && `· ${r.barcode}`}
       </div>

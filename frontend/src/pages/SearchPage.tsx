@@ -30,8 +30,8 @@ export function SearchPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="sticky top-0 z-10 -mx-6 -mt-6 bg-surface/95 px-6 pb-4 pt-6 backdrop-blur">
+    <div className="p-6 max-md:p-4">
+      <div className="sticky top-0 z-10 -mx-6 -mt-6 bg-surface/95 px-6 pb-4 pt-6 backdrop-blur max-md:-mx-4 max-md:-mt-4 max-md:px-4 max-md:pb-3 max-md:pt-4">
         <div className="relative max-w-xl">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -39,13 +39,13 @@ export function SearchPage() {
             value={q}
             onChange={(e) => update({ q: e.target.value })}
             placeholder="What do you want to listen to?"
-            className="h-12 rounded-full border-none bg-elevated pl-12 text-base"
+            className="h-12 rounded-full border-none bg-elevated pl-12 text-base max-md:h-11"
             data-testid="search-input"
           />
           {isFetching && <Loader2 className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 animate-spin text-muted-foreground" />}
         </div>
         {dq && (
-          <Tabs value={kind} onValueChange={(v) => update({ type: v === "all" ? "" : v })} className="mt-4">
+          <Tabs value={kind} onValueChange={(v) => update({ type: v === "all" ? "" : v })} className="mt-4 max-md:mt-3">
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="artist">Artists</TabsTrigger>
@@ -57,7 +57,7 @@ export function SearchPage() {
       </div>
 
       {!dq && (
-        <div className="mt-24 text-center text-muted-foreground">
+        <div className="mt-24 text-center text-muted-foreground max-md:mt-16">
           <Search className="mx-auto mb-4 h-12 w-12" />
           <p className="text-lg font-bold text-foreground">Search MusicBrainz</p>
           <p className="text-sm">Find artists, albums and songs to download.</p>
@@ -67,10 +67,10 @@ export function SearchPage() {
 
       {data?.artists && data.artists.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-2xl font-bold">Artists</h2>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2">
+          <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Artists</h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2 max-md:-mx-2 max-md:grid-cols-3 max-md:gap-0">
             {data.artists.map((a) => (
-              <Link key={a.id} to={`/artist/${a.id}`} className="flex flex-col items-center gap-3 rounded-md p-3 text-center hover:bg-elevated" data-testid="artist-result">
+              <Link key={a.id} to={`/artist/${a.id}`} className="flex flex-col items-center gap-3 rounded-md p-3 text-center hover:bg-elevated max-md:gap-2 max-md:p-2" data-testid="artist-result">
                 <ArtistAvatar id={a.id} className="w-full" />
                 <div className="w-full min-w-0">
                   <div className="truncate text-sm font-bold">{a.name}</div>
@@ -86,8 +86,8 @@ export function SearchPage() {
 
       {data?.tracks && data.tracks.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-2xl font-bold">Songs</h2>
-          <div className="max-w-4xl">
+          <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Songs</h2>
+          <div className="max-w-4xl max-md:-mx-3">
             {data.tracks.map((t, i) => <SongRow key={t.id} t={t} list={data.tracks!} index={i} />)}
           </div>
         </section>
@@ -95,8 +95,8 @@ export function SearchPage() {
 
       {data?.albums && data.albums.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-2xl font-bold">Albums</h2>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1">
+          <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Albums</h2>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1 max-md:-mx-2 max-md:grid-cols-2 max-md:gap-0">
             {data.albums.map((rg) => (
               <AlbumCard key={rg.id} rg={rg} subtitle={[rg.year, rg.primary_type, rg.artist].filter(Boolean).join(" • ")} />
             ))}

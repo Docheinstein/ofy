@@ -140,7 +140,7 @@ function DrawerBody({ track, releaseId }: { track: DrawerTrack; releaseId: strin
                   key={c.video_id}
                   className={cn("flex items-center gap-3 rounded-md p-2 hover:bg-elevated", chosen && "bg-primary/10 ring-1 ring-primary/40")}
                 >
-                  {c.thumbnail ? <img src={c.thumbnail} className="h-10 w-10 rounded object-cover" alt="" /> : <div className="h-10 w-10 rounded bg-elevated" />}
+                  {c.thumbnail ? <img src={c.thumbnail} className="h-10 w-10 rounded object-cover max-sm:hidden" alt="" /> : <div className="h-10 w-10 rounded bg-elevated max-sm:hidden" />}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">{c.title}</div>
                     <div className="truncate text-xs text-muted-foreground">

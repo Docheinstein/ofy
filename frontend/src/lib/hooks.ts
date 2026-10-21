@@ -30,3 +30,17 @@ export function useHistoryNav() {
     forward: () => navigate(1),
   };
 }
+
+/** Phone-sized window (below Tailwind's `md`): the sidebar becomes a bottom bar and pages drill down instead of unfolding. */
+const COMPACT = "(max-width: 767px)";
+
+export function useCompact() {
+  const [compact, setCompact] = useState(() => window.matchMedia(COMPACT).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(COMPACT);
+    const on = () => setCompact(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return compact;
+}

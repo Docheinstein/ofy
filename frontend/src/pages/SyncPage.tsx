@@ -26,9 +26,9 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 export function SyncPage() {
   return (
-    <div className="mx-auto max-w-3xl space-y-10 p-8">
+    <div className="mx-auto max-w-3xl space-y-10 p-8 max-md:space-y-8 max-md:p-4">
       <div>
-        <h1 className="text-3xl font-extrabold">Sync</h1>
+        <h1 className="text-3xl font-extrabold max-md:text-2xl">Sync</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Copy the artists, albums and songs you mark with the cloud button to another computer (over SSH, with rsync)
           or to a folder such as a mounted drive.

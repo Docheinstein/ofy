@@ -10,7 +10,7 @@ export function AlbumCard({ rg, subtitle, action }: { rg: ReleaseGroupSummary; s
   return (
     <Link
       to={`/album/${rg.id}`}
-      className="group flex flex-col gap-2 rounded-md p-3 transition-colors hover:bg-elevated"
+      className="group flex flex-col gap-2 rounded-md p-3 transition-colors hover:bg-elevated max-md:p-2"
     >
       <div className="relative">
         <Cover src={coverUrl("release-group", rg.id, 250)} alt={rg.title} />
