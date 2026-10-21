@@ -4,7 +4,8 @@
 # node_modules when package-lock.json changes, the UI when any frontend source is newer than the build.
 #
 # Extra arguments for the desktop app go in ARGS, e.g. `make run ARGS=--debug`; the web server port in
-# PORT, e.g. `make web PORT=9000`.
+# PORT, e.g. `make web PORT=9000`. `make install` puts an `ofy` command in BINDIR (default ~/.local/bin,
+# $PREFIX/bin on Termux) that does `make run` from anywhere.
 #
 # On Android in Termux (detected automatically) Ofy runs as a web app: `make` also installs the Termux
 # packages and builds the venv with pip, and `make run` is the same as `make web`.
@@ -17,6 +18,7 @@ ARGS ?=
 PORT ?= 8080
 
 TERMUX := $(if $(or $(TERMUX_VERSION),$(wildcard /data/data/com.termux)),1)
+BINDIR ?= $(if $(TERMUX),$(PREFIX)/bin,$(HOME)/.local/bin)
 
 VENV := backend/.venv
 NODE_MODULES := frontend/node_modules/.package-lock.json
@@ -25,10 +27,10 @@ FRONTEND_SRC := $(shell find frontend/src frontend/public -type f) frontend/inde
 	frontend/package.json $(wildcard frontend/*.config.*)
 TERMUX_PKGS := .termux-packages
 
-.PHONY: help build run web test clean
+.PHONY: help build run web install uninstall test clean
 
 help: ## Show this help
-	@awk -F ':.*## ' '/^[a-z]+:.*## / { printf "  make %-7s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk -F ':.*## ' '/^[a-z]+:.*## / { printf "  make %-9s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 build: $(VENV) $(DIST) ## Install backend + frontend dependencies and build the UI (the default)
 	@command -v ffmpeg >/dev/null || echo "warning: ffmpeg not found on PATH; downloads will fail until it is installed." >&2
@@ -58,6 +60,22 @@ else
 	@echo "Ofy web UI: http://localhost:$(PORT)"
 	cd backend && OFY_PORT=$(PORT) uv run python -m ofy
 endif
+
+# The command is a small script pointing back at this checkout, so it always runs the current code and
+# rebuilds whatever is out of date first. Its arguments become ARGS, e.g. `ofy --debug`.
+install: build ## Install an `ofy` command in BINDIR (default ~/.local/bin) that does make run from anywhere
+	mkdir -p "$(BINDIR)"
+	printf '%s\n' '#!/usr/bin/env bash' \
+	  '# Installed by `make install` in $(CURDIR): runs `make run` there.' \
+	  'args=; (( $$# )) && args=$$(printf "%q " "$$@")' \
+	  'exec make --no-print-directory -s -C "$(CURDIR)" run ARGS="$$args"' \
+	  > "$(BINDIR)/ofy"
+	chmod +x "$(BINDIR)/ofy"
+	@echo "Installed $(BINDIR)/ofy"
+	@[[ ":$$PATH:" == *":$(BINDIR):"* ]] || echo "warning: $(BINDIR) is not on PATH; add it to run ofy by name." >&2
+
+uninstall: ## Remove the `ofy` command installed by make install
+	rm -f "$(BINDIR)/ofy"
 
 test: $(VENV) ## Run the backend unit tests
 ifdef TERMUX

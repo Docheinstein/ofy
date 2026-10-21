@@ -38,6 +38,7 @@ make run            # open the desktop app (builds first if anything is missing 
 | `make test` | Runs the backend unit tests |
 | `make run` | Desktop app (native window). Extra args go to `ofy-desktop` via `ARGS`, e.g. `make run ARGS=--debug` |
 | `make web [PORT=8080]` | Web server only; UI at http://localhost:8080 |
+| `make install [BINDIR=~/.local/bin]` | Installs an `ofy` command that does `make run` from anywhere (`ofy --debug` = `make run ARGS=--debug`); `make uninstall` removes it |
 | `make help` | Lists the targets |
 
 `make run` and `make web` rebuild automatically when the virtualenv or `node_modules` is missing or
