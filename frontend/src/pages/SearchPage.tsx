@@ -42,7 +42,12 @@ export function SearchPage() {
             className="h-12 rounded-full border-none bg-elevated pl-12 text-base max-md:h-11"
             data-testid="search-input"
           />
-          {isFetching && <Loader2 className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 animate-spin text-muted-foreground" />}
+          {/* centred by the wrapper: animate-spin's transform would override the icon's own translate */}
+          {isFetching && (
+            <span className="absolute right-4 top-1/2 -translate-y-1/2">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </span>
+          )}
         </div>
         {dq && (
           <Tabs value={kind} onValueChange={(v) => update({ type: v === "all" ? "" : v })} className="mt-4 max-md:mt-3">
