@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, useNavigate, useNavigationType } from "react-router-dom";
+import { api, type DownloadItem } from "./api";
 
 export function useDebounced<T>(value: T, ms = 350): T {
   const [v, setV] = useState(value);
@@ -43,4 +45,13 @@ export function useCompact() {
     return () => mq.removeEventListener("change", on);
   }, []);
   return compact;
+}
+
+/** The download queue; shared by the Downloads page and the in-progress count in the navigation. */
+export function useDownloads() {
+  return useQuery({
+    queryKey: ["downloads"],
+    queryFn: () => api.get<{ active: DownloadItem[]; recent: DownloadItem[] }>("/api/downloads"),
+    refetchInterval: 5000,
+  });
 }

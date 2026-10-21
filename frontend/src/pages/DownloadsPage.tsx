@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Loader2, RotateCw, Trash2 } from "lucide-react";
 import { api, coverUrl, type DownloadItem } from "@/lib/api";
+import { useDownloads } from "@/lib/hooks";
 import { useLiveVersion } from "@/lib/live";
 import { useLiveTrack } from "@/lib/live";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,7 @@ import { YouTubeImports } from "@/components/YouTubeImports";
 export function DownloadsPage() {
   const qc = useQueryClient();
   useLiveVersion();
-  const { data, isLoading } = useQuery({
-    queryKey: ["downloads"],
-    queryFn: () => api.get<{ active: DownloadItem[]; recent: DownloadItem[] }>("/api/downloads"),
-    refetchInterval: 5000,
-  });
+  const { data, isLoading } = useDownloads();
   const clear = useMutation({ mutationFn: () => api.post("/api/downloads/clear"), onSuccess: () => qc.invalidateQueries({ queryKey: ["downloads"] }) });
   const retryAll = useMutation({ mutationFn: () => api.post("/api/downloads/retry-failed"), onSuccess: () => qc.invalidateQueries({ queryKey: ["downloads"] }) });
 

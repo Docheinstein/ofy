@@ -1,11 +1,11 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Download, FolderSync, Library, Search, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FolderSync, Library, Search, Settings, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useHistoryNav } from "@/lib/hooks";
+import { useDownloads, useHistoryNav } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { lastSearch } from "@/pages/SearchPage";
 
-const items = [
+const items: { to: string; label: string; icon: LucideIcon; count?: number }[] = [
   { to: "/search", label: "Search", icon: Search },
   { to: "/library", label: "Library", icon: Library },
   { to: "/downloads", label: "Downloads", icon: Download },
@@ -13,10 +13,28 @@ const items = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-/** The nav targets; Search links back to the last search rather than an empty one. Re-read on every navigation. */
+/**
+ * The nav targets; Search links back to the last search rather than an empty one (re-read on every navigation),
+ * and Downloads carries the number of downloads in progress.
+ */
 function useNavItems() {
   useLocation();
-  return items.map((it) => (it.to === "/search" && lastSearch ? { ...it, to: `/search?${lastSearch}` } : it));
+  const active = useDownloads().data?.active.length ?? 0;
+  return items.map((it) =>
+    it.to === "/search" && lastSearch ? { ...it, to: `/search?${lastSearch}` }
+    : it.to === "/downloads" ? { ...it, count: active }
+    : it,
+  );
+}
+
+/** The count as a dot on the icon, for the icon-only sidebar and the bottom tab bar. */
+function CountBadge({ count, className }: { count?: number; className?: string }) {
+  if (!count) return null;
+  return (
+    <span className={cn("absolute -right-2 -top-1.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-bold leading-4 text-primary-foreground", className)}>
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 /** Narrower windows (below `lg`) get just the icons. */
@@ -32,11 +50,11 @@ export function Sidebar() {
           <HistoryArrows />
         </div>
         <nav className="flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
+          {navItems.map(({ to, label, icon: Icon, count }) => (
             <NavLink
               key={to}
               to={to}
-              title={label}
+              title={count ? `${label} (${count} in progress)` : label}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-4 rounded-md px-3 py-2 text-sm font-bold text-muted-foreground transition-colors hover:text-foreground max-lg:justify-center",
@@ -44,8 +62,14 @@ export function Sidebar() {
                 )
               }
             >
-              <Icon className="h-5 w-5" />
-              <span className="max-lg:hidden">{label}</span>
+              <span className="relative">
+                <Icon className="h-5 w-5" />
+                <CountBadge count={count} className="lg:hidden" />
+              </span>
+              <span className="max-lg:hidden">
+                {label}
+                {!!count && <span className="font-normal text-muted-foreground"> ({count})</span>}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -60,7 +84,7 @@ export function BottomNav() {
   const navItems = useNavItems();
   return (
     <nav className="grid shrink-0 grid-cols-5 bg-black pb-[env(safe-area-inset-bottom)]" data-testid="bottom-nav">
-      {navItems.map(({ to, label, icon: Icon }) => (
+      {navItems.map(({ to, label, icon: Icon, count }) => (
         <NavLink
           key={to}
           to={to}
@@ -73,7 +97,10 @@ export function BottomNav() {
         >
           {({ isActive }) => (
             <>
-              <Icon className="h-6 w-6" strokeWidth={isActive ? 2.5 : 2} />
+              <span className="relative">
+                <Icon className="h-6 w-6" strokeWidth={isActive ? 2.5 : 2} />
+                <CountBadge count={count} />
+              </span>
               {label}
             </>
           )}
