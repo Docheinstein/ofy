@@ -371,6 +371,29 @@ def read_fields(path: Path) -> dict[str, list[str]]:
     return out
 
 
+def read_cover(path: Path) -> bytes | None:
+    """The embedded front cover (or else the first embedded picture), None without one."""
+    k = kind_of(path)
+    pictures: list[tuple[bool, bytes]] = []  # (is front cover, data)
+    if k == "mp3":
+        try:
+            tags = id3.ID3(path)
+        except id3.ID3NoHeaderError:
+            return None
+        pictures = [(f.type == id3.PictureType.COVER_FRONT, f.data) for f in tags.getall("APIC")]
+    elif k == "m4a":
+        pictures = [(True, bytes(v)) for v in (MP4(path).tags or {}).get("covr", [])]
+    else:
+        for v in (OggOpus(path).tags or {}).get("METADATA_BLOCK_PICTURE", []):
+            try:
+                pic = Picture(base64.b64decode(v))
+            except Exception:
+                continue
+            pictures.append((pic.type == 3, pic.data))
+    pictures.sort(key=lambda p: not p[0])
+    return pictures[0][1] if pictures else None
+
+
 def read_mbids(path: Path) -> dict[str, str | None]:
     fields = read_fields(path)
 

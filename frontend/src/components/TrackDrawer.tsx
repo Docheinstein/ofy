@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Mic2, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
-import { api, ApiError, type TrackDetail, type TrackRowData } from "@/lib/api";
+import { api, ApiError, isLocal, type TrackDetail, type TrackRowData } from "@/lib/api";
 import { useTrackActions } from "@/lib/actions";
 import { useLiveTrack } from "@/lib/live";
 import { cn, formatDuration, formatSeconds } from "@/lib/utils";
@@ -38,6 +38,7 @@ function DrawerBody({ track, releaseId }: { track: DrawerTrack; releaseId: strin
   const actions = useTrackActions(releaseId);
   const [searching, setSearching] = useState(false);
   const status = live?.status ?? data?.status ?? track.library?.status ?? "none";
+  const local = isLocal(track.track_id); // a file taken as it is: no YouTube match
 
   const findCandidates = async () => {
     setSearching(true);
@@ -91,7 +92,7 @@ function DrawerBody({ track, releaseId }: { track: DrawerTrack; releaseId: strin
       <Tabs defaultValue={status === "needs_review" ? "match" : "tags"}>
         <TabsList>
           <TabsTrigger value="tags">Tags</TabsTrigger>
-          <TabsTrigger value="match">Match</TabsTrigger>
+          {!local && <TabsTrigger value="match">Match</TabsTrigger>}
           <TabsTrigger value="lyrics">Lyrics</TabsTrigger>
         </TabsList>
 

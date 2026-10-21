@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowDownCircle, Loader2, MicVocal, Play, RefreshCw, Tags } from "lucide-react";
 import { useState } from "react";
-import { api, coverUrl, type ReleaseDetail, type ReleaseGroupDetail, type TrackRowData } from "@/lib/api";
+import { api, coverUrl, isLocal, type ReleaseDetail, type ReleaseGroupDetail, type TrackRowData } from "@/lib/api";
 import { useTrackActions } from "@/lib/actions";
 import { useLiveVersion } from "@/lib/live";
 import { usePlayer } from "@/lib/player";
@@ -44,6 +44,8 @@ export function AlbumPage() {
   const g = rg.data;
   const lib = r.library;
   const cover = coverUrl("release", r.id, 500, g.id);
+  // files without MusicBrainz ids: nothing to download, match or retag, and a single "edition"
+  const local = isLocal(r.id);
 
   const playFrom = (i: number) =>
     player.playList(
@@ -69,7 +71,7 @@ export function AlbumPage() {
           <p className="text-sm font-semibold max-md:hidden">{g.primary_type ?? "Release"}</p>
           <h1 className="break-words text-4xl font-black tracking-tight max-md:text-2xl md:text-6xl" data-testid="album-title">{r.title}</h1>
           <p className="mt-4 flex flex-wrap items-center gap-x-1.5 text-sm max-md:mt-2">
-            {r.artist_id ? <Link to={`/artist/${r.artist_id}`} className="font-bold hover:underline">{r.artist}</Link> : <b>{r.artist}</b>}
+            {r.artist_id && !isLocal(r.artist_id) ? <Link to={`/artist/${r.artist_id}`} className="font-bold hover:underline">{r.artist}</Link> : <b>{r.artist}</b>}
             <span className="text-muted-foreground">• {g.year ?? r.date?.slice(0, 4)} • {r.tracks.length} songs, {formatDuration(r.length_ms)}</span>
             <span className="ml-2"><AlbumStatusBadge status={lib.status} /></span>
             {lib.status !== "none" && <span className="text-xs text-muted-foreground">{lib.done}/{lib.total}</span>}
@@ -86,57 +88,63 @@ export function AlbumPage() {
         >
           <Play className="h-6 w-6 fill-current" />
         </button>
-        <Button
-          variant="outline"
-          onClick={() => actions.downloadAlbum.mutate(r.id)}
-          disabled={actions.downloadAlbum.isPending || lib.status === "complete"}
-          className="max-md:h-8 max-md:px-3 max-md:text-xs"
-          data-testid="download-album"
-        >
-          {actions.downloadAlbum.isPending ? <Loader2 className="animate-spin" /> : <ArrowDownCircle />}
-          {lib.status === "complete" ? "Downloaded" : lib.status === "partial" ? "Download remaining" : "Download album"}
-        </Button>
+        {!local && (
+          <Button
+            variant="outline"
+            onClick={() => actions.downloadAlbum.mutate(r.id)}
+            disabled={actions.downloadAlbum.isPending || lib.status === "complete"}
+            className="max-md:h-8 max-md:px-3 max-md:text-xs"
+            data-testid="download-album"
+          >
+            {actions.downloadAlbum.isPending ? <Loader2 className="animate-spin" /> : <ArrowDownCircle />}
+            {lib.status === "complete" ? "Downloaded" : lib.status === "partial" ? "Download remaining" : "Download album"}
+          </Button>
+        )}
         {/* phones: the edition and play on the first line, the rest below */}
         <div className="hidden basis-full max-md:-order-1 max-md:block" />
         <SyncToggle variant="button" className="max-md:h-8 max-md:px-3 max-md:text-xs" target={{ kind: "album", id: r.id, title: r.title, subtitle: r.artist }} artistId={r.artist_id} />
         {lib.done > 0 && (
           <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" onClick={() => actions.retag.mutate(r.id)} disabled={actions.retag.isPending} aria-label="Refresh tags" className="max-md:w-8 max-md:px-0">
-                  {actions.retag.isPending ? <Loader2 className="animate-spin" /> : <Tags />} <span className="max-md:hidden">Refresh tags</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Rewrite tags from fresh MusicBrainz data (no re-download)</TooltipContent>
-            </Tooltip>
+            {!local && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={() => actions.retag.mutate(r.id)} disabled={actions.retag.isPending} aria-label="Refresh tags" className="max-md:w-8 max-md:px-0">
+                    {actions.retag.isPending ? <Loader2 className="animate-spin" /> : <Tags />} <span className="max-md:hidden">Refresh tags</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Rewrite tags from fresh MusicBrainz data (no re-download)</TooltipContent>
+              </Tooltip>
+            )}
             <Button variant="ghost" size="sm" onClick={() => actions.albumLyrics.mutate(r.id)} disabled={actions.albumLyrics.isPending} title="Fetch missing lyrics" aria-label="Fetch missing lyrics" className="max-md:w-8 max-md:px-0">
               {actions.albumLyrics.isPending ? <Loader2 className="animate-spin" /> : <MicVocal />} <span className="max-md:hidden">Fetch missing lyrics</span>
             </Button>
           </>
         )}
         <div className="flex-1 max-md:hidden" />
-        <div className="w-72 max-md:-order-3 max-md:w-auto max-md:min-w-0 max-md:flex-1">
-          <Select
-            value={r.id}
-            onValueChange={(v) => {
-              const p = new URLSearchParams(params);
-              p.set("release", v);
-              setParams(p, { replace: true });
-            }}
-          >
-            <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {g.editions.map((e) => (
-                <SelectItem key={e.id} value={e.id} className="text-xs">
-                  {[e.date ?? "????", e.country, e.formats.join("+"), `${e.track_count} tr`, e.labels[0], e.disambiguation, e.status !== "Official" ? e.status : null]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  {e.id === g.canonical_release_id ? " ★" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!local && (
+          <div className="w-72 max-md:-order-3 max-md:w-auto max-md:min-w-0 max-md:flex-1">
+            <Select
+              value={r.id}
+              onValueChange={(v) => {
+                const p = new URLSearchParams(params);
+                p.set("release", v);
+                setParams(p, { replace: true });
+              }}
+            >
+              <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {g.editions.map((e) => (
+                  <SelectItem key={e.id} value={e.id} className="text-xs">
+                    {[e.date ?? "????", e.country, e.formats.join("+"), `${e.track_count} tr`, e.labels[0], e.disambiguation, e.status !== "Official" ? e.status : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    {e.id === g.canonical_release_id ? " ★" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {rel.isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
       </div>
 

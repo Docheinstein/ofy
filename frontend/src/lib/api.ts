@@ -370,6 +370,9 @@ export interface TrackEvent {
   error: string | null;
 }
 
+/** Albums, tracks and artists known only from files without MusicBrainz ids, taken from their own tags. */
+export const isLocal = (id: string | null | undefined) => !!id?.startsWith("local-");
+
 export const coverUrl = (kind: "release" | "release-group", id: string, size: 250 | 500 | 1200 = 500, fallbackRg?: string) =>
   `/api/cover/${kind}/${id}?size=${size}${fallbackRg ? `&fallback_rg=${fallbackRg}` : ""}`;
 

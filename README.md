@@ -259,6 +259,12 @@ numbered files.
   library, reads MusicBrainz ids from tags for unknown files, and reconciles: deleted audio → track back
   to `none` (album becomes `partial`); moved files are followed; files added outside the app (with MBID
   tags) are adopted; `.lrc` sidecars added or removed update the lyrics status.
+* **Files without MusicBrainz ids** (`.mp3`/`.m4a`/`.opus`, e.g. a game soundtrack from YouTube) are taken
+  as they are, from their own tags: files in the same folder with the same album tag make an album (titled
+  after the folder without one), with its artist, year, genre and the embedded cover (or a `cover.jpg`
+  next to them). They show up in the Library and on album pages, play, fetch lyrics and sync like the
+  rest, but there's nothing to download, match or refresh from MusicBrainz. Their ids start with `local-`
+  and are re-read on every scan, so tag edits (in the track drawer or another tagger) are picked up.
 * **Refresh tags** (album page) re-fetches the release from MusicBrainz (bypassing the cache) and
   rewrites tags in place — no YouTube access, the audio stream is untouched. If the new metadata
   renders to a different path, the file and its sidecars are moved.

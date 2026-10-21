@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, CheckCircle2, Disc3, Eye, Loader2, Music, Plug, Square, Upload, User, X, XCircle } from "lucide-react";
-import { api, type Settings, type SyncKind, type SyncStatus, type SyncSummary } from "@/lib/api";
+import { api, isLocal, type Settings, type SyncKind, type SyncStatus, type SyncSummary } from "@/lib/api";
 import { useSyncSelection } from "@/lib/sync";
 import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -160,7 +160,7 @@ function Selection() {
                 <div key={i.ref_id} className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-elevated">
                   <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1 truncate text-sm">
-                    {kind === "artist" ? (
+                    {kind === "artist" && !isLocal(i.ref_id) ? (
                       <Link to={`/artist/${i.ref_id}`} className="font-semibold hover:underline">{i.title || i.ref_id}</Link>
                     ) : (
                       <span className="font-semibold">{i.title || i.ref_id}</span>

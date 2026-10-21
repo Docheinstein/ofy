@@ -1,7 +1,8 @@
-"""MusicBrainz browsing endpoints."""
+"""MusicBrainz browsing endpoints; albums of local files (``library.local``) are answered from the files."""
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -10,9 +11,11 @@ from sqlmodel import col, select
 
 from ofy import artistimage, coverart
 from ofy.db import Album, Track, session
+from ofy.library import local
 from ofy.library.status import album_summary
 from ofy.mb import logic
 from ofy.mb.client import MusicBrainzError, NotFound, get_mb
+from ofy.tagging import writers
 
 router = APIRouter(prefix="/api", tags=["browse"])
 
@@ -102,8 +105,20 @@ async def artist(mbid: str) -> dict[str, Any]:
     }
 
 
+def _local_album(release_id: str) -> tuple[Album, list[Track]]:
+    with session() as s:
+        album = s.get(Album, release_id)
+        tracks = list(s.exec(select(Track).where(Track.release_id == release_id)).all())
+    if album is None:
+        raise HTTPException(404, "Not in the library")
+    return album, tracks
+
+
 @router.get("/release-group/{mbid}")
 async def release_group(mbid: str, release: str | None = None) -> dict[str, Any]:
+    if local.is_local(mbid):
+        album, tracks = _local_album(mbid)
+        return local.release_group_detail(album, tracks, await asyncio.to_thread(local.genres, tracks))
     mb = get_mb()
     rg = await _mb(mb.release_group(mbid))
     releases = await _mb(mb.browse_releases(mbid))
@@ -114,9 +129,9 @@ async def release_group(mbid: str, release: str | None = None) -> dict[str, Any]
     selected = release
     if selected is None:
         with session() as s:
-            local = s.exec(select(Album).where(Album.release_group_id == mbid)).first()
-        if local and any(r["id"] == local.release_id for r in releases):
-            selected = local.release_id
+            owned = s.exec(select(Album).where(Album.release_group_id == mbid)).first()
+        if owned and any(r["id"] == owned.release_id for r in releases):
+            selected = owned.release_id
     selected = selected or canonical["id"]
     editions = sorted((logic.summarize_release(r) for r in releases),
                       key=lambda r: (r["date"] or "9999", r["title"]))
@@ -131,6 +146,8 @@ async def release_group(mbid: str, release: str | None = None) -> dict[str, Any]
 
 @router.get("/release/{mbid}")
 async def release(mbid: str) -> dict[str, Any]:
+    if local.is_local(mbid):
+        return _local_release(mbid)
     rel = await _mb(get_mb().release(mbid))
     rows = logic.tracklist(rel)
     ids = [r["track_id"] for r in rows]
@@ -153,9 +170,42 @@ async def release(mbid: str) -> dict[str, Any]:
     }
 
 
+def _local_release(release_id: str) -> dict[str, Any]:
+    album, tracks = _local_album(release_id)
+    by_id = {t.track_id: t for t in tracks}
+    rows = local.tracklist(tracks)
+    for r in rows:
+        r["library"] = track_state(by_id[r["track_id"]])
+    return {
+        **local.edition(album, tracks),
+        "artist": album.artist,
+        "artist_id": album.artist_id,
+        "release_group_id": album.release_group_id,
+        "release_group_title": album.title,
+        "primary_type": "Album",
+        "first_release_date": album.year,
+        "length_ms": sum(r["length_ms"] or 0 for r in rows),
+        "tracks": rows,
+        "library": album_summary([t.status for t in tracks], len(tracks)),
+    }
+
+
+async def _local_cover(release_id: str) -> Response:
+    with session() as s:
+        album = s.get(Album, release_id)
+        tracks = list(s.exec(select(Track).where(Track.release_id == release_id)).all())
+    data = await asyncio.to_thread(local.cover, album, tracks)
+    if data is None:
+        return Response(status_code=404, headers={"Cache-Control": "no-cache"})
+    # revalidated each time: the files' cover can change
+    return Response(data, media_type=writers.image_mime(data), headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/cover/{kind}/{mbid}")
 async def cover(kind: Literal["release", "release-group"], mbid: str,
                 size: Literal["250", "500", "1200"] = "500", fallback_rg: str | None = None) -> Response:
+    if local.is_local(mbid):
+        return await _local_cover(mbid)
     unavailable = False
     data = None
     for k, m in ((kind, mbid), ("release-group", fallback_rg)):
@@ -178,6 +228,13 @@ async def artist_image(mbid: str, size: Literal["250", "500", "1200"] = "500",
                        fallback_rg: str | None = None, wikidata: str | None = None) -> Response:
     """Artist photo from Wikidata/Commons; falls back to an album cover of the artist if given.
     ``wikidata`` (the artist's Q-id, when the caller knows it) saves a Wikidata search."""
+    if local.is_local(fallback_rg):
+        # an artist only known from local files: the cover of one of their albums
+        if local.is_local(mbid):
+            return await _local_cover(fallback_rg)  # type: ignore[arg-type]
+        fallback_rg = None
+    elif local.is_local(mbid):
+        return Response(status_code=404, headers={"Cache-Control": "no-cache"})
     if wikidata and not (wikidata.startswith("Q") and wikidata[1:].isdigit()):
         wikidata = None
     data = await artistimage.fetch_artist_image(mbid, size, wikidata)

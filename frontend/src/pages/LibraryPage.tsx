@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Disc, EllipsisVertical, ExternalLink, Loader2, MicVocal, Play, RefreshCw, Search, User, Volume2, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { api, coverUrl, type LibraryAlbum, type LibraryTrack } from "@/lib/api";
+import { api, coverUrl, isLocal, type LibraryAlbum, type LibraryTrack } from "@/lib/api";
 import { ArtistAvatar } from "@/components/ArtistAvatar";
 import { Button } from "@/components/ui/button";
 import { Cover } from "@/components/Cover";
@@ -304,14 +304,16 @@ function ArtistNode({ group: g, filtered, expanded, onOpen }: { group: Group; fi
         {g.artistId && (
           <>
             <SyncToggle target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} hideWhenOff />
-            <Link
-              to={`/artist/${g.artistId}`}
-              aria-label={`Open ${g.artist}`}
-              title="Open artist page"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Link>
+            {!isLocal(g.artistId) && (
+              <Link
+                to={`/artist/${g.artistId}`}
+                aria-label={`Open ${g.artist}`}
+                title="Open artist page"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            )}
           </>
         )}
       </div>
@@ -630,7 +632,7 @@ function ArtistView({ group: g, filtered, onBack, onAlbum }: { group: Group; fil
         {g.artistId && (
           <div className="flex flex-wrap justify-center gap-2">
             <SyncToggle variant="button" className="h-8 px-3 text-xs" target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} />
-            <OpenPage to={`/artist/${g.artistId}`} label="Artist page" />
+            {!isLocal(g.artistId) && <OpenPage to={`/artist/${g.artistId}`} label="Artist page" />}
           </div>
         )}
       </header>

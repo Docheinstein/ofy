@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Save, Undo2, X } from "lucide-react";
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, isLocal } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -73,7 +73,11 @@ export function TagEditor({ trackId, fields, editable }: { trackId: string; fiel
 
   const save = useMutation({
     mutationFn: () => api.put<{ fields: Record<string, string[]> }>(`/api/track/${trackId}/tags`, { changes }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["track", trackId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["track", trackId] });
+      // a local track's album page is built from its tags
+      if (isLocal(trackId)) ["release", "release-group", "library"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    },
   });
 
   const setValue = (name: string, value: string) => setRows((rs) => rs.map((r) => (r.name === name ? { ...r, value } : r)));

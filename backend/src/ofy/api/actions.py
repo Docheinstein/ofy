@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from sqlmodel import col, delete, select
 
 from ofy.db import Album, Job, Track, load_settings, session
 from ofy.jobs import queue
+from ofy.library import local
 from ofy.match.engine import match_release
 from ofy.mb import logic
 from ofy.mb.client import MusicBrainzError, NotFound, get_mb
@@ -32,14 +34,22 @@ async def _guard(coro):
         raise HTTPException(502, str(e)) from e
 
 
+def _not_local(mbid: str | None) -> None:
+    """Downloading, matching and MusicBrainz retagging don't apply to local files."""
+    if local.is_local(mbid):
+        raise HTTPException(400, "A local file: not from MusicBrainz or YouTube")
+
+
 @router.post("/release/{release_id}/download")
 async def download_release(release_id: str) -> dict[str, Any]:
+    _not_local(release_id)
     n = await _guard(enqueue_album(release_id))
     return {"queued": n}
 
 
 @router.post("/release/{release_id}/tracks/{track_id}/download")
 async def download_track(release_id: str, track_id: str) -> dict[str, Any]:
+    _not_local(release_id)
     try:
         await _guard(enqueue_track(release_id, track_id))
     except KeyError as e:
@@ -69,6 +79,7 @@ async def download_recording(recording_id: str, release: str | None = None) -> d
 
 @router.post("/release/{release_id}/tracks/{track_id}/candidates")
 async def find_candidates(release_id: str, track_id: str) -> dict[str, Any]:
+    _not_local(release_id)
     release = await _guard(get_mb().release(release_id))
     ensure_release_rows(release)
     settings = load_settings()
@@ -86,6 +97,7 @@ async def find_candidates(release_id: str, track_id: str) -> dict[str, Any]:
 
 @router.post("/track/{track_id}/retry")
 def retry(track_id: str) -> dict[str, Any]:
+    _not_local(track_id)
     t = get_track(track_id)
     if t is None:
         raise HTTPException(404, "Unknown track")
@@ -103,6 +115,7 @@ class ManualMatch(BaseModel):
 
 @router.post("/track/{track_id}/match")
 def choose_match(track_id: str, body: ManualMatch) -> dict[str, Any]:
+    _not_local(track_id)
     t = get_track(track_id)
     if t is None:
         raise HTTPException(404, "Unknown track")
@@ -155,7 +168,7 @@ class TagEdit(BaseModel):
 
 
 @router.put("/track/{track_id}/tags")
-def edit_tags(track_id: str, body: TagEdit) -> dict[str, Any]:
+async def edit_tags(track_id: str, body: TagEdit) -> dict[str, Any]:
     t = get_track(track_id)
     if t is None:
         raise HTTPException(404, "Unknown track")
@@ -163,9 +176,14 @@ def edit_tags(track_id: str, body: TagEdit) -> dict[str, Any]:
         raise HTTPException(409, "Track is not downloaded")
     path = Path(t.file_path)
     try:
-        writers.edit_fields(path, body.changes)
+        await asyncio.to_thread(writers.edit_fields, path, body.changes)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    if local.is_local(track_id):
+        # a local track is what its tags say: show the edit everywhere (title, album, ...)
+        from ofy.library.scanner import scan_library
+
+        await asyncio.to_thread(scan_library)
     return {"fields": _editable_fields(path)}
 
 
@@ -201,6 +219,7 @@ def library_missing_lyrics() -> dict[str, Any]:
 
 @router.post("/release/{release_id}/retag")
 def retag(release_id: str) -> dict[str, Any]:
+    _not_local(release_id)
     if not any(t.status == "done" for t in tracks_for_release(release_id)):
         raise HTTPException(400, "Nothing downloaded for this release")
     queue.enqueue("retag", release_id=release_id)
@@ -325,9 +344,7 @@ def library_albums() -> list[dict[str, Any]]:
 
 @router.post("/library/rescan")
 async def rescan() -> dict[str, Any]:
-    import asyncio
-
     from ofy.library.scanner import scan_library
 
     result = await asyncio.to_thread(scan_library)
-    return {"changed": len(result.changes), "scanned": result.scanned}
+    return {"changed": len(result.changes) + result.local_changes, "scanned": result.scanned}

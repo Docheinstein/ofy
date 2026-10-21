@@ -14,11 +14,12 @@ from pathlib import Path
 
 from ofy import artistimage, coverart
 from ofy.config import Settings, env
-from ofy.db import Job, load_settings
+from ofy.db import Album, Job, Track, load_settings, session
 from ofy.download import convert as conv
 from ofy.download.paths import render_template
 from ofy.download.ytdlp import download_audio
 from ofy.jobs import PermanentError, queue
+from ofy.library import local
 from ofy.lyrics import service as lyrics_service
 from ofy.match.engine import TrackMatch, match_release
 from ofy.match.scoring import COMPOSITE_SEP
@@ -248,8 +249,6 @@ async def _cache_artist_image(model: TagModel) -> None:
 
 
 def _record_album_folder(release_id: str, folder: Path) -> None:
-    from ofy.db import Album, session
-
     with session() as s:
         a = s.get(Album, release_id)
         if a:
@@ -335,8 +334,11 @@ async def handle_lyrics(job: Job) -> None:
     if t is None or t.status != "done" or not t.file_path or not Path(t.file_path).is_file():
         return
     settings = load_settings()
-    release = await get_mb().release(t.release_id)
-    model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id)
+    if local.is_local(t.track_id):
+        model = _local_tag_model(t)
+    else:
+        release = await get_mb().release(t.release_id)
+        model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id)
     path = Path(t.file_path)
     update_track(t.track_id, stage="lyrics")
     try:
@@ -349,6 +351,19 @@ async def handle_lyrics(job: Job) -> None:
     finally:
         update_track(t.track_id, stage=None, publish=False)
     update_track(t.track_id, lyrics_status=status, lyrics_path=str(lp) if lp else None)
+
+
+def _local_tag_model(t: Track) -> TagModel:
+    """What the lyrics lookup needs of a local track, from its (tag-derived) rows."""
+    with session() as s:
+        album = s.get(Album, t.release_id)
+    album_artist = album.artist if album else t.artist
+    return TagModel(
+        title=t.title, artist=t.artist, artists=[t.artist], artistsort=t.artist,
+        album=album.title if album else "", albumartist=album_artist, albumartists=[album_artist],
+        albumartistsort=album_artist, tracknumber=t.position, totaltracks=album.track_count if album else 0,
+        discnumber=t.disc, totaldiscs=1, length_ms=t.length_ms,
+    )
 
 
 def register_handlers() -> None:
