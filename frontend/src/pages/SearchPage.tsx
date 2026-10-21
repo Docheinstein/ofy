@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDownCircle, CheckCircle2, Loader2, Play, Search } from "lucide-react";
-import { api, coverUrl, type ReleaseGroupDetail, type ReleaseGroupSummary, type SearchResult, type TrackHit } from "@/lib/api";
+import { api, coverUrl, type SearchResult, type TrackHit } from "@/lib/api";
 import { useDebounced } from "@/lib/hooks";
 import { usePlayer } from "@/lib/player";
 import { formatDuration } from "@/lib/utils";
@@ -103,50 +103,12 @@ export function SearchPage() {
           <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Albums</h2>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1 max-md:-mx-2 max-md:grid-cols-2 max-md:gap-0">
             {data.albums.map((rg) => (
-              <AlbumCard
-                key={rg.id}
-                rg={rg}
-                subtitle={[rg.year, rg.primary_type, rg.artist].filter(Boolean).join(" • ")}
-                action={rg.library?.status !== "complete" && <AlbumDownloadButton rg={rg} />}
-              />
+              <AlbumCard key={rg.id} rg={rg} subtitle={[rg.year, rg.primary_type, rg.artist].filter(Boolean).join(" • ")} />
             ))}
           </div>
         </section>
       )}
     </div>
-  );
-}
-
-// Queues the edition the album page would open with (the one already in the library, else the canonical one).
-function AlbumDownloadButton({ rg }: { rg: ReleaseGroupSummary }) {
-  const qc = useQueryClient();
-  const dl = useMutation({
-    mutationFn: async () => {
-      const g = await api.get<ReleaseGroupDetail>(`/api/release-group/${rg.id}`);
-      return api.post(`/api/release/${g.selected_release_id}/download`);
-    },
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["downloads"] });
-      qc.invalidateQueries({ queryKey: ["library"] });
-      qc.invalidateQueries({ queryKey: ["search"] });
-    },
-  });
-  const label = dl.isError ? (dl.error as Error).message : dl.isSuccess ? "Queued" : rg.library?.status === "partial" ? "Download remaining" : "Download album";
-  return (
-    <button
-      className={`flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white shadow transition-opacity hover:scale-105 hover:bg-black/85 disabled:opacity-80 focus-visible:opacity-100 ${dl.isIdle ? "md:opacity-0 md:group-hover:opacity-100" : ""}`}
-      onClick={(e) => {
-        e.preventDefault(); // the card is a link to the album
-        e.stopPropagation();
-        dl.mutate();
-      }}
-      disabled={dl.isPending || dl.isSuccess}
-      aria-label={label}
-      title={label}
-      data-testid="album-result-download"
-    >
-      {dl.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : dl.isSuccess ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <ArrowDownCircle className={dl.isError ? "h-5 w-5 text-destructive" : "h-5 w-5"} />}
-    </button>
   );
 }
 

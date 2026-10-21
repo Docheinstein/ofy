@@ -1,11 +1,11 @@
-import type { ReactNode } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { CheckCircle2, CircleDashed } from "lucide-react";
-import { coverUrl, type ReleaseGroupSummary } from "@/lib/api";
+import { ArrowDownCircle, CheckCircle2, CircleDashed, Loader2 } from "lucide-react";
+import { api, coverUrl, type ReleaseGroupDetail, type ReleaseGroupSummary } from "@/lib/api";
 import { Cover } from "./Cover";
 import { AlbumStatusBadge } from "./StatusIcons";
 
-export function AlbumCard({ rg, subtitle, action }: { rg: ReleaseGroupSummary; subtitle?: string; action?: ReactNode }) {
+export function AlbumCard({ rg, subtitle }: { rg: ReleaseGroupSummary; subtitle?: string }) {
   const status = rg.library?.status ?? "none";
   return (
     <Link
@@ -14,7 +14,11 @@ export function AlbumCard({ rg, subtitle, action }: { rg: ReleaseGroupSummary; s
     >
       <div className="relative">
         <Cover src={coverUrl("release-group", rg.id, 250)} alt={rg.title} />
-        {action && <div className="absolute right-2 top-2">{action}</div>}
+        {status !== "complete" && (
+          <div className="absolute right-2 top-2">
+            <AlbumDownloadButton rg={rg} />
+          </div>
+        )}
         {status !== "none" && (
           <div className="absolute bottom-2 right-2 rounded-full bg-black/70 p-1">
             {status === "complete" ? (
@@ -33,5 +37,39 @@ export function AlbumCard({ rg, subtitle, action }: { rg: ReleaseGroupSummary; s
         </div>
       </div>
     </Link>
+  );
+}
+
+// Queues the edition the album page would open with (the one already in the library, else the canonical one).
+function AlbumDownloadButton({ rg }: { rg: ReleaseGroupSummary }) {
+  const qc = useQueryClient();
+  const dl = useMutation({
+    mutationFn: async () => {
+      const g = await api.get<ReleaseGroupDetail>(`/api/release-group/${rg.id}`);
+      return api.post(`/api/release/${g.selected_release_id}/download`);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["downloads"] });
+      qc.invalidateQueries({ queryKey: ["library"] });
+      qc.invalidateQueries({ queryKey: ["search"] });
+      qc.invalidateQueries({ queryKey: ["artist"] });
+    },
+  });
+  const label = dl.isError ? (dl.error as Error).message : dl.isSuccess ? "Queued" : rg.library?.status === "partial" ? "Download remaining" : "Download album";
+  return (
+    <button
+      className={`flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white shadow transition-opacity hover:scale-105 hover:bg-black/85 disabled:opacity-80 focus-visible:opacity-100 ${dl.isIdle ? "md:opacity-0 md:group-hover:opacity-100" : ""}`}
+      onClick={(e) => {
+        e.preventDefault(); // the card is a link to the album
+        e.stopPropagation();
+        dl.mutate();
+      }}
+      disabled={dl.isPending || dl.isSuccess}
+      aria-label={label}
+      title={label}
+      data-testid="album-card-download"
+    >
+      {dl.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : dl.isSuccess ? <CheckCircle2 className="h-5 w-5 text-primary" /> : <ArrowDownCircle className={dl.isError ? "h-5 w-5 text-destructive" : "h-5 w-5"} />}
+    </button>
   );
 }
