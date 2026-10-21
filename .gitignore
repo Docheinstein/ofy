@@ -12,3 +12,4 @@ backend/library/
 *.egg-info/
 .shots/
 .termux-packages
+*.tsbuildinfo
