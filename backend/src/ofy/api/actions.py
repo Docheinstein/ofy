@@ -342,9 +342,18 @@ def library_albums() -> list[dict[str, Any]]:
     return out
 
 
+@router.get("/library/status")
+async def library_status() -> dict[str, Any]:
+    """Whether the library folder is there; when it's not (a drive not attached) the songs can't play."""
+    from ofy.library.scanner import library_missing
+
+    path = Path(load_settings().library_path).expanduser()
+    return {"available": not await asyncio.to_thread(library_missing, path), "path": str(path)}
+
+
 @router.post("/library/rescan")
 async def rescan() -> dict[str, Any]:
     from ofy.library.scanner import scan_library
 
     result = await asyncio.to_thread(scan_library)
-    return {"changed": len(result.changes) + result.local_changes, "scanned": result.scanned}
+    return {"changed": len(result.changes) + result.local_changes, "scanned": result.scanned, "missing": result.missing}

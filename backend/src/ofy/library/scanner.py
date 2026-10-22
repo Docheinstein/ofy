@@ -55,6 +55,7 @@ class ScanResult:
     changes: list[Change] = field(default_factory=list)
     scanned: int = 0
     local_changes: int = 0
+    missing: bool = False  # the library wasn't there (a drive not attached): nothing was touched
 
 
 def lyrics_from_sidecars(previous: str, on_disk: str) -> str:
@@ -129,10 +130,25 @@ def _sidecar_state(p: Path) -> str:
     return "synced" if p.with_suffix(".lrc").is_file() else "none"
 
 
+def library_missing(root: Path) -> bool:
+    """The library folder is gone or empty (e.g. on a drive that isn't attached) while songs are known
+    to be in it. A scan then would take every song for deleted, so it's skipped instead."""
+    try:
+        if root.is_dir() and any(root.iterdir()):
+            return False
+    except OSError:
+        pass
+    with session() as s:
+        return s.exec(select(Track.track_id).where(Track.status == "done").limit(1)).first() is not None
+
+
 def scan_library() -> ScanResult:
     """Blocking: walk the library, reconcile, apply changes. Run in a thread."""
     settings = load_settings()
     root = Path(settings.library_path).expanduser()
+    if library_missing(root):
+        log.warning("library scan skipped: %s is missing or empty (drive not attached?)", root)
+        return ScanResult(missing=True)
     with session() as s:
         rows = [t for t in s.exec(select(Track)).all() if not local.is_local(t.track_id)]
     db = [DbTrack(t.track_id, t.status, t.file_path, t.lyrics_status, t.file_format, t.lyrics_path) for t in rows]

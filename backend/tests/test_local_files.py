@@ -167,3 +167,27 @@ def test_musicbrainz_actions_refused():
     with pytest.raises(HTTPException) as e:
         retag("local-album-123")
     assert e.value.status_code == 400
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("unplugged", ["gone", "empty"])
+def test_missing_library_is_left_alone(library, unplugged):
+    from ofy.api.actions import library_status
+
+    lib, *_ = library
+    scan_library()
+    before = _rows()
+    shutil.rmtree(lib)
+    if unplugged == "empty":
+        lib.mkdir()  # an empty mount point
+    assert scan_library().missing
+    assert _rows() == before
+    assert asyncio.run(library_status())["available"] is False
+
+
+def test_empty_library_is_not_missing(tmp_db, tmp_path):
+    from ofy.api.actions import library_status
+
+    save_settings(Settings(library_path=str(tmp_path / "nothing-yet")))
+    assert not scan_library().missing
+    assert asyncio.run(library_status())["available"] is True

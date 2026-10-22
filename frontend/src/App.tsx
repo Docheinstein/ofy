@@ -1,6 +1,7 @@
 import { type RefObject, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigationType } from "react-router-dom";
 import { BottomNav, Sidebar } from "@/components/Sidebar";
+import { LibraryNotice } from "@/components/LibraryNotice";
 import { LyricsPanel, PlayerBar } from "@/components/PlayerBar";
 import { PlayerProvider } from "@/lib/player";
 import { useLiveUpdates } from "@/lib/live";
@@ -43,6 +44,7 @@ export default function App() {
   return (
     <PlayerProvider>
       <div className="flex h-full flex-col gap-2 bg-black p-2 max-md:gap-0 max-md:p-0">
+        <LibraryNotice />
         <div className="flex min-h-0 flex-1 gap-2">
           {!compact && <Sidebar />}
           <main ref={main} className="min-w-0 flex-1 overflow-y-auto overscroll-contain rounded-lg bg-surface max-md:rounded-none">

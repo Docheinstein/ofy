@@ -265,6 +265,9 @@ numbered files.
   next to them). They show up in the Library and on album pages, play, fetch lyrics and sync like the
   rest, but there's nothing to download, match or refresh from MusicBrainz. Their ids start with `local-`
   and are re-read on every scan, so tag edits (in the track drawer or another tagger) are picked up.
+* **Library on a drive that isn't attached**: when the library folder is missing or empty while songs are
+  known to be in it, the scan is skipped instead of taking every song for deleted. The Library keeps
+  showing what it knew, a strip at the top asks to attach the drive, and once it's back it's rescanned.
 * **Refresh tags** (album page) re-fetches the release from MusicBrainz (bypassing the cache) and
   rewrites tags in place — no YouTube access, the audio stream is untouched. If the new metadata
   renders to a different path, the file and its sidecars are moved.
