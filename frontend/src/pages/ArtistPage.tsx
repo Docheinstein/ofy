@@ -70,7 +70,7 @@ export function ArtistPage() {
 }
 
 function Bucket({ bucket }: { bucket: ArtistDetail["discography"][number] }) {
-  const [all, setAll] = useState(false);
+  const [all, setAll] = useState(true);
   const items = all ? bucket.items : bucket.items.slice(0, 12);
   return (
     <section data-testid={`bucket-${bucket.type}`}>
