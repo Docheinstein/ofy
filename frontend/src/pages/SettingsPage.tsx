@@ -29,7 +29,11 @@ export function SettingsPage() {
   }, [data]);
   const save = useMutation({
     mutationFn: (s: Settings) => api.put<Settings>("/api/settings", s),
-    onSuccess: (s) => qc.setQueryData(["settings"], s),
+    onSuccess: (s) => {
+      qc.setQueryData(["settings"], s);
+      // plays come and go with ListenBrainz
+      ["search", "artist", "release-group", "release", "library"].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    },
   });
 
   if (!form) return <div className="p-8 text-muted-foreground">Loading…</div>;
@@ -161,6 +165,16 @@ export function SettingsPage() {
           </Field>
           <Field label="LRCLIB URL">
             <Input value={form.lrclib_url} onChange={(e) => set("lrclib_url", e.target.value)} />
+          </Field>
+        </section>
+
+        <section className="space-y-5">
+          <h2 className="text-lg font-bold">ListenBrainz</h2>
+          <Field
+            label="Show play counts"
+            hint="How often albums and songs were played on ListenBrainz, to sort an artist's releases by. Looked up once per page and kept for a week"
+          >
+            <Switch checked={form.listenbrainz} onCheckedChange={(v) => set("listenbrainz", v)} />
           </Field>
         </section>
 

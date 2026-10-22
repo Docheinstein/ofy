@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlbumStatusBadge } from "@/components/StatusIcons";
 import { Cover } from "@/components/Cover";
+import { Plays } from "@/components/Plays";
 import { TrackList } from "@/components/TrackList";
 import { TrackDrawer } from "@/components/TrackDrawer";
 import { SyncToggle } from "@/components/SyncToggle";
@@ -73,6 +74,7 @@ export function AlbumPage() {
           <p className="mt-4 flex flex-wrap items-center gap-x-1.5 text-sm max-md:mt-2">
             {r.artist_id && !isLocal(r.artist_id) ? <Link to={`/artist/${r.artist_id}`} className="font-bold hover:underline">{r.artist}</Link> : <b>{r.artist}</b>}
             <span className="text-muted-foreground">• {g.year ?? r.date?.slice(0, 4)} • {r.tracks.length} songs, {formatDuration(r.length_ms)}</span>
+            <Plays n={g.plays} className="ml-1 text-sm" />
             <span className="ml-2"><AlbumStatusBadge status={lib.status} /></span>
             {lib.status !== "none" && <span className="text-xs text-muted-foreground">{lib.done}/{lib.total}</span>}
           </p>

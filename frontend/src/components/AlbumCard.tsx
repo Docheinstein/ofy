@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDownCircle, CheckCircle2, CircleDashed, Loader2 } from "lucide-react";
 import { api, coverUrl, type ReleaseGroupDetail, type ReleaseGroupSummary } from "@/lib/api";
 import { Cover } from "./Cover";
+import { Plays } from "./Plays";
 import { AlbumStatusBadge } from "./StatusIcons";
 
 export function AlbumCard({ rg, subtitle }: { rg: ReleaseGroupSummary; subtitle?: string }) {
@@ -34,6 +35,7 @@ export function AlbumCard({ rg, subtitle }: { rg: ReleaseGroupSummary; subtitle?
         <div className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
           <span className="truncate">{subtitle ?? [rg.year, rg.artist].filter(Boolean).join(" • ")}</span>
           {status === "partial" && <AlbumStatusBadge status={status} compact />}
+          <Plays n={rg.plays} className="ml-auto" />
         </div>
       </div>
     </Link>

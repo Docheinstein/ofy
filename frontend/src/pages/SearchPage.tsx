@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlbumCard } from "@/components/AlbumCard";
 import { ArtistAvatar } from "@/components/ArtistAvatar";
 import { Cover } from "@/components/Cover";
+import { Plays } from "@/components/Plays";
+import { SortToggle, byPlays, useSort } from "@/components/SortToggle";
 
 type Kind = "all" | "artist" | "album" | "track";
 
@@ -30,6 +32,13 @@ export function SearchPage() {
   useEffect(() => {
     lastSearch = params.toString();
   }, [params]);
+  // songs and albums newest first, or most played first; plays come with every result when ListenBrainz is on
+  const [sort, setSort] = useSort();
+  const withPlays = [...(data?.albums ?? []), ...(data?.tracks ?? [])].some((x) => x.plays != null);
+  const byYear = <T,>(items: T[], date: (x: T) => string | null | undefined) =>
+    [...items].sort((a, b) => (date(b) ?? "").localeCompare(date(a) ?? ""));
+  const tracks = data?.tracks && (withPlays && sort === "plays" ? byPlays(data.tracks) : byYear(data.tracks, (t) => t.release?.date));
+  const albums = data?.albums && (withPlays && sort === "plays" ? byPlays(data.albums) : byYear(data.albums, (a) => a.first_release_date));
   const update = (next: Record<string, string>) => {
     const p = new URLSearchParams(params);
     Object.entries(next).forEach(([k, v]) => (v ? p.set(k, v) : p.delete(k)));
@@ -66,6 +75,7 @@ export function SearchPage() {
             </TabsList>
           </Tabs>
         )}
+        {dq && withPlays && kind !== "artist" && <SortToggle sort={sort} onChange={setSort} className="mt-3" />}
       </div>
 
       {!dq && (
@@ -96,20 +106,20 @@ export function SearchPage() {
         </section>
       )}
 
-      {data?.tracks && data.tracks.length > 0 && (
+      {tracks && tracks.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Songs</h2>
           <div className="max-w-4xl max-md:-mx-3">
-            {data.tracks.map((t, i) => <SongRow key={t.id} t={t} list={data.tracks!} index={i} />)}
+            {tracks.map((t, i) => <SongRow key={t.id} t={t} list={tracks} index={i} />)}
           </div>
         </section>
       )}
 
-      {data?.albums && data.albums.length > 0 && (
+      {albums && albums.length > 0 && (
         <section className="mt-8">
           <h2 className="mb-3 text-2xl font-bold max-md:text-xl">Albums</h2>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-1 max-md:-mx-2 max-md:grid-cols-2 max-md:gap-0">
-            {data.albums.map((rg) => (
+            {albums.map((rg) => (
               <AlbumCard key={rg.id} rg={rg} subtitle={[rg.year, rg.primary_type, rg.artist].filter(Boolean).join(" • ")} />
             ))}
           </div>
@@ -162,6 +172,7 @@ function SongRow({ t, list, index }: { t: TrackHit; list: TrackHit[]; index: num
           )}
         </div>
       </div>
+      <Plays n={t.plays} />
       <span className="text-sm tabular-nums text-muted-foreground">{formatDuration(t.length_ms)}</span>
       <button
         className="flex h-7 w-7 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-60"

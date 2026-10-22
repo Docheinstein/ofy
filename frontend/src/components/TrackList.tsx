@@ -1,9 +1,10 @@
-import { Clock3, Disc, EllipsisVertical, Play, Volume2 } from "lucide-react";
+import { Clock3, Disc, EllipsisVertical, Headphones, Play, Volume2 } from "lucide-react";
 import type { TrackRowData } from "@/lib/api";
 import { useLiveTrack } from "@/lib/live";
 import { useCompact } from "@/lib/hooks";
 import { usePlayer } from "@/lib/player";
 import { cn, formatDuration } from "@/lib/utils";
+import { Plays } from "./Plays";
 import { LyricsIndicator, TrackStatusButton } from "./StatusIcons";
 import { SyncToggle } from "./SyncToggle";
 
@@ -22,12 +23,16 @@ export function TrackList({ releaseId, artistId, albumTitle, tracks, onPlay, onO
   const multiDisc = tracks.some((t) => t.disc_total > 1);
   const compact = useCompact();
   const RowFor = compact ? CompactRow : Row;
+  // a column for the plays when ListenBrainz is on
+  const withPlays = tracks.some((t) => t.plays !== undefined);
+  const cols = withPlays ? "grid-cols-[2.5rem_1fr_4rem_2rem_3.5rem_2.5rem_2rem]" : "grid-cols-[2.5rem_1fr_2rem_3.5rem_2.5rem_2rem]";
   let lastDisc = 0;
   return (
     <div className="px-6 max-md:px-1" data-testid="tracklist">
-      <div className="grid max-md:hidden grid-cols-[2.5rem_1fr_2rem_3.5rem_2.5rem_2rem] items-center gap-3 border-b px-4 pb-2 text-xs uppercase tracking-wider text-muted-foreground">
+      <div className={cn("grid max-md:hidden items-center gap-3 border-b px-4 pb-2 text-xs uppercase tracking-wider text-muted-foreground", cols)}>
         <span className="text-right">#</span>
         <span>Title</span>
+        {withPlays && <span className="flex justify-end" title="Plays on ListenBrainz"><Headphones className="h-4 w-4" /></span>}
         <span />
         <span className="flex justify-end"><Clock3 className="h-4 w-4" /></span>
         <span />
@@ -47,6 +52,7 @@ export function TrackList({ releaseId, artistId, albumTitle, tracks, onPlay, onO
               )}
               <RowFor
                 t={t}
+                cols={cols}
                 releaseId={releaseId}
                 artistId={artistId}
                 albumTitle={albumTitle}
@@ -65,6 +71,7 @@ export function TrackList({ releaseId, artistId, albumTitle, tracks, onPlay, onO
 
 interface RowProps {
   t: TrackRowData;
+  cols: string;
   releaseId: string;
   artistId: string | null;
   albumTitle: string;
@@ -74,14 +81,14 @@ interface RowProps {
   onRetry: () => void;
 }
 
-function Row({ t, releaseId, artistId, albumTitle, onPlay, onOpen, onDownload, onRetry }: RowProps) {
+function Row({ t, cols, releaseId, artistId, albumTitle, onPlay, onOpen, onDownload, onRetry }: RowProps) {
   const live = useLiveTrack(t.track_id);
   const s = { ...t.library, ...(live ?? {}) };
   const { current, playing } = usePlayer();
   const isCurrent = current?.track_id === t.track_id || (!current?.track_id && current?.recording_id === t.recording_id);
   return (
     <div
-      className="group grid cursor-pointer grid-cols-[2.5rem_1fr_2rem_3.5rem_2.5rem_2rem] items-center gap-3 rounded-md px-4 py-2 hover:bg-elevated"
+      className={cn("group grid cursor-pointer items-center gap-3 rounded-md px-4 py-2 hover:bg-elevated", cols)}
       onClick={onOpen}
       onDoubleClick={onPlay}
       data-track-id={t.track_id}
@@ -103,6 +110,7 @@ function Row({ t, releaseId, artistId, albumTitle, onPlay, onOpen, onDownload, o
         <div className={cn("truncate text-[15px]", isCurrent && "text-primary")}>{t.title}</div>
         <div className="truncate text-sm text-muted-foreground">{t.artist}</div>
       </div>
+      {t.plays !== undefined && <div className="flex justify-end"><Plays n={t.plays} bare /></div>}
       <div className="flex justify-center"><LyricsIndicator status={s.lyrics_status} /></div>
       <div className="text-right text-sm tabular-nums text-muted-foreground">{formatDuration(t.length_ms)}</div>
       <div className="flex justify-center">
@@ -150,6 +158,7 @@ function CompactRow({ t, releaseId, artistId, albumTitle, onPlay, onOpen, onDown
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           {s.lyrics_status !== "none" && <LyricsIndicator status={s.lyrics_status} />}
           <span className="truncate">{[t.artist, formatDuration(t.length_ms)].filter(Boolean).join(" • ")}</span>
+          <Plays n={t.plays} />
         </div>
       </div>
       <TrackStatusButton

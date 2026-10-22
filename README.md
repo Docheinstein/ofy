@@ -205,6 +205,18 @@ numbered files.
 * Cover art comes from the Cover Art Archive (`front-1200`, falling back to the original image, then to
   the release group's cover) and is cached on disk.
 
+### Play counts (ListenBrainz)
+
+* With **Show play counts** on (Settings, the default), albums and songs show how often they were played on
+  [ListenBrainz](https://listenbrainz.org), from its popularity API keyed on MusicBrainz ids: on search
+  results, artist pages, album pages and in the Library. The songs and albums (singles included) found by
+  a search, and an artist's sections, are sorted newest first, or by **Plays** with the toggle above
+  them (`?sort=plays`).
+* Light on the network: a page asks once for all the ids it shows (one `POST`, up to 1000 ids), counts are
+  cached for a week (ids ListenBrainz doesn't know too), requests are spaced 0.5 s apart (its limit is 30
+  per 10 s), and after a failure ListenBrainz is left alone for 5 minutes. When it's down, pages simply
+  show no counts. Files without MusicBrainz ids have none.
+
 ### Matching (YouTube Music)
 
 * **Strategy A (album)**: search `filter="albums"`, score candidates on title / artist / year / track
@@ -413,7 +425,7 @@ tracks, export cookies from a browser to a `cookies.txt` (Netscape format) and s
 | `GET /api/track/{tid}` · `POST /api/track/{tid}/retry` · `POST /api/track/{tid}/match` · `POST /api/release/{id}/tracks/{tid}/candidates` | Track detail, retry, manual match, candidates |
 | `POST /api/track/{tid}/lyrics` · `POST /api/release/{id}/lyrics` · `POST /api/library/lyrics` | Lyrics refetch / fill missing |
 | `POST /api/release/{id}/retag` | Refresh tags |
-| `GET /api/library/albums` · `POST /api/library/rescan` | Library |
+| `GET /api/library/albums` · `GET /api/library/status` · `POST /api/library/rescan` | Library |
 | `GET /api/downloads` · `POST /api/downloads/clear` · `POST /api/downloads/retry-failed` | Queue view |
 | `POST /api/youtube/import` · `GET /api/youtube/imports` · `POST /api/youtube/imports/{id}/match\|retry` · `DELETE /api/youtube/imports/{id}` · `POST /api/youtube/imports/clear` | Downloads from YouTube links |
 | `GET /api/stream/{recording_id}` · `GET /api/lyrics/{recording_id}` | Playback |

@@ -8,9 +8,11 @@ import { ArtistAvatar } from "@/components/ArtistAvatar";
 import { Button } from "@/components/ui/button";
 import { SyncToggle } from "@/components/SyncToggle";
 import { FloatingBack } from "@/components/Sidebar";
+import { SortToggle, byPlays, useSort } from "@/components/SortToggle";
 
 export function ArtistPage() {
   const { id } = useParams();
+  const [sort, setSort] = useSort();
   const { data, isLoading, error } = useQuery({
     queryKey: ["artist", id],
     queryFn: () => api.get<ArtistDetail>(`/api/artist/${id}`),
@@ -18,6 +20,8 @@ export function ArtistPage() {
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin" /></div>;
   if (error || !data) return <div className="p-8 text-destructive">{(error as Error)?.message}</div>;
   const years = [data.life_span?.begin?.slice(0, 4), data.life_span?.end?.slice(0, 4)].filter(Boolean).join("–");
+  // plays come with every item when ListenBrainz is on
+  const withPlays = data.discography.some((b) => b.items.some((rg) => rg.plays != null));
 
   return (
     <div>
@@ -41,7 +45,10 @@ export function ArtistPage() {
       </header>
 
       <div className="space-y-10 p-6 max-md:space-y-8 max-md:px-3 max-md:py-4">
-        {data.discography.map((bucket) => <Bucket key={bucket.type} bucket={bucket} />)}
+        {withPlays && <SortToggle sort={sort} onChange={setSort} className="-mb-6 max-md:-mb-4 max-md:px-1" />}
+        {data.discography.map((bucket) => (
+          <Bucket key={bucket.type} bucket={withPlays && sort === "plays" ? { ...bucket, items: byPlays(bucket.items) } : bucket} />
+        ))}
 
         {data.related.length > 0 && (
           <section>

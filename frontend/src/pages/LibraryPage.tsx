@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Cover } from "@/components/Cover";
 import { Input } from "@/components/ui/input";
 import { LyricsIndicator } from "@/components/StatusIcons";
+import { Plays } from "@/components/Plays";
 import { SyncToggle } from "@/components/SyncToggle";
 import { TrackDrawer } from "@/components/TrackDrawer";
 import { useCompact } from "@/lib/hooks";
@@ -351,7 +352,10 @@ function AlbumNode({ shown: { album: a, songs, reveal }, filtered, expanded, onO
           <Cover src={coverUrl("release", a.release_id, 250, a.release_group_id)} alt={a.title} className="h-10 w-10 shrink-0" rounded="rounded" />
           <div className="min-w-0 flex-1">
             <div className="truncate font-medium">{a.title}</div>
-            <div className="text-sm text-muted-foreground">{[a.year, detail].filter(Boolean).join(" • ")}</div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {[a.year, detail].filter(Boolean).join(" • ")}
+              <Plays n={a.plays} />
+            </div>
           </div>
         </button>
         <SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} hideWhenOff />
@@ -429,7 +433,10 @@ function SongRow({ album: a, t, onPlay, onOpen }: SongRowProps) {
   const isCurrent = current?.track_id === t.track_id;
   return (
     <div
-      className="group grid cursor-pointer grid-cols-[2rem_1fr_1.5rem_3.5rem_2rem] items-center gap-3 rounded-md px-3 py-1.5 hover:bg-elevated"
+      className={cn(
+        "group grid cursor-pointer items-center gap-3 rounded-md px-3 py-1.5 hover:bg-elevated",
+        t.plays !== undefined ? "grid-cols-[2rem_1fr_4rem_1.5rem_3.5rem_2rem]" : "grid-cols-[2rem_1fr_1.5rem_3.5rem_2rem]",
+      )}
       onClick={onOpen}
       onDoubleClick={onPlay}
       data-testid="library-song"
@@ -451,6 +458,7 @@ function SongRow({ album: a, t, onPlay, onOpen }: SongRowProps) {
         <div className={cn("truncate text-[15px]", isCurrent && "text-primary")}>{t.title}</div>
         {t.artist !== a.artist && <div className="truncate text-sm text-muted-foreground">{t.artist}</div>}
       </div>
+      {t.plays !== undefined && <div className="flex justify-end"><Plays n={t.plays} /></div>}
       <div className="flex justify-center"><LyricsIndicator status={t.lyrics_status} /></div>
       <div className="text-right text-sm tabular-nums text-muted-foreground">{formatDuration(t.length_ms)}</div>
       <SyncToggle
@@ -490,6 +498,7 @@ function CompactSongRow({ album: a, t, withAlbum, onPlay, onOpen }: SongRowProps
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           {t.lyrics_status !== "none" && <LyricsIndicator status={t.lyrics_status} />}
           <span className="truncate">{sub}</span>
+          <Plays n={t.plays} />
         </div>
       </div>
       <SyncToggle
@@ -586,7 +595,7 @@ function RootRows({ group: g, searching, drill, onOpen }: { group: Group; search
 }
 
 function ListRow({ art, title, detail, sync, onClick, testId }: {
-  art: React.ReactNode; title: string; detail: string; sync: React.ReactNode; onClick: () => void; testId: string;
+  art: React.ReactNode; title: string; detail: React.ReactNode; sync: React.ReactNode; onClick: () => void; testId: string;
 }) {
   return (
     <div className="flex items-center rounded-md transition-colors active:bg-elevated">
@@ -609,7 +618,7 @@ function AlbumRow({ shown: { album: a, songs }, filtered, withArtist, onClick }:
     <ListRow
       art={<Cover src={coverUrl("release", a.release_id, 250, a.release_group_id)} alt="" className="h-14 w-14 shrink-0" rounded="rounded" />}
       title={a.title}
-      detail={[withArtist ? a.artist : null, a.year, detail].filter(Boolean).join(" • ")}
+      detail={<>{[withArtist ? a.artist : null, a.year, detail].filter(Boolean).join(" • ")} <Plays n={a.plays} className="ml-1 align-middle" /></>}
       sync={<SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} onlyWhenOn />}
       onClick={onClick}
       testId="library-album-row"
@@ -673,6 +682,7 @@ function AlbumView({ shown: { album: a, songs }, group: g, filtered, onBack, onO
           <p className="mt-1 truncate text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{g.artist}</span>
             {a.year && ` • ${a.year}`} • {a.library.done}/{a.library.total} tracks
+            <Plays n={a.plays} className="ml-2 align-middle" />
           </p>
         </div>
       </header>

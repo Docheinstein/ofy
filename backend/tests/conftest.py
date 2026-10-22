@@ -29,11 +29,16 @@ def tmp_db(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _reset_singletons():
     """Async clients/limiters bind to an event loop; give every test fresh ones."""
+    from ofy import listenbrainz
     from ofy.match import ytm
     from ofy.mb import client
 
     client._client = None
     ytm._service = None
+    listenbrainz._client = None
+    listenbrainz._down_until = 0.0
     yield
     client._client = None
     ytm._service = None
+    listenbrainz._client = None
+    listenbrainz._down_until = 0.0

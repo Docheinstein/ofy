@@ -45,6 +45,7 @@ export interface Settings {
   lyrics_prefer_synced: boolean;
   lyrics_embed: boolean;
   lrclib_url: string;
+  listenbrainz: boolean;
   cookies_path: string;
   max_retries: number;
   genre_mode: "multi" | "joined" | "first";
@@ -120,6 +121,8 @@ export interface ReleaseGroupSummary {
   artist: string;
   artist_id: string | null;
   library?: AlbumLibrary | null;
+  /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
+  plays?: number | null;
 }
 
 export interface ArtistSummary {
@@ -148,6 +151,8 @@ export interface TrackHit {
   length_ms: number | null;
   disambiguation: string | null;
   release: { id: string; title: string; release_group_id: string | null; date: string | null } | null;
+  /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
+  plays?: number | null;
 }
 
 export interface SearchResult {
@@ -204,6 +209,8 @@ export interface TrackRowData {
   medium_format: string | null;
   medium_title: string | null;
   library: TrackState;
+  /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
+  plays?: number | null;
 }
 
 export interface ReleaseDetail extends Edition {
@@ -274,6 +281,8 @@ export interface LibraryAlbum {
   lyrics: Record<string, number>;
   /** The downloaded songs, by disc and position. */
   tracks: LibraryTrack[];
+  /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
+  plays?: number | null;
 }
 
 export interface LibraryTrack {
@@ -285,6 +294,8 @@ export interface LibraryTrack {
   artist: string;
   length_ms: number | null;
   lyrics_status: LyricsStatus;
+  /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
+  plays?: number | null;
 }
 
 /** A pasted YouTube video on its way to a MusicBrainz track. */

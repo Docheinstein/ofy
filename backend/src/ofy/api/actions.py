@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlmodel import col, delete, select
 
+from ofy import listenbrainz
 from ofy.db import Album, Job, Track, load_settings, session
 from ofy.jobs import queue
 from ofy.library import local
@@ -271,8 +272,11 @@ def _item(job: Job, t: Track | None, albums: dict[str, Album]) -> dict[str, Any]
 
 
 @router.get("/library/albums")
-def get_library_albums() -> list[dict[str, Any]]:
-    return library_albums()
+async def get_library_albums() -> list[dict[str, Any]]:
+    albums = await asyncio.to_thread(library_albums)
+    await asyncio.gather(listenbrainz.attach("release-group", albums, "release_group_id"),
+                         listenbrainz.attach("recording", [t for a in albums for t in a["tracks"]], "recording_id"))
+    return albums
 
 
 @router.get("/downloads")

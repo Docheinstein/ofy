@@ -124,6 +124,7 @@ class Settings(BaseModel):
     lyrics_prefer_synced: bool = True
     lyrics_embed: bool = True
     lrclib_url: str = "https://lrclib.net"
+    listenbrainz: bool = True  # play counts from ListenBrainz on albums and songs
     cookies_path: str = ""
     max_retries: int = Field(default=3, ge=0, le=10)
     genre_mode: GenreMode = "multi"

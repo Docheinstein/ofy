@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from sqlmodel import col, select
 
-from ofy import artistimage, coverart
+from ofy import artistimage, coverart, listenbrainz
 from ofy.db import Album, Track, session
 from ofy.library import local
 from ofy.library.status import album_summary
@@ -81,6 +81,8 @@ async def search(q: str = Query(min_length=1), type: Literal["all", "artist", "a
     if type in ("all", "track"):
         data = await _mb(mb.search("recording", q, limit=limit if type == "track" else 12))
         out["tracks"] = [logic.summarize_recording_hit(r) for r in data.get("recordings", [])]
+    await asyncio.gather(listenbrainz.attach("release-group", out.get("albums", [])),
+                         listenbrainz.attach("recording", out.get("tracks", [])))
     return out
 
 
@@ -94,6 +96,7 @@ async def artist(mbid: str) -> dict[str, Any]:
     for bucket in disco:
         for item in bucket["items"]:
             item["library"] = states.get(item["id"])
+    await listenbrainz.attach("release-group", [item for bucket in disco for item in bucket["items"]])
     # Artist image: newest studio album cover (MusicBrainz has no artist images).
     image_rg = next((b["items"][0]["id"] for b in disco if b["type"] == "Album"), None)
     return {
@@ -135,8 +138,10 @@ async def release_group(mbid: str, release: str | None = None) -> dict[str, Any]
     selected = selected or canonical["id"]
     editions = sorted((logic.summarize_release(r) for r in releases),
                       key=lambda r: (r["date"] or "9999", r["title"]))
+    summary = logic.summarize_release_group(rg)
+    await listenbrainz.attach("release-group", [summary])
     return {
-        **logic.summarize_release_group(rg),
+        **summary,
         "genres": [g["name"] for g in sorted(rg.get("genres") or [], key=lambda g: -g.get("count", 0))][:5],
         "canonical_release_id": canonical["id"],
         "selected_release_id": selected,
@@ -155,6 +160,7 @@ async def release(mbid: str) -> dict[str, Any]:
         tracks = {t.track_id: t for t in s.exec(select(Track).where(col(Track.track_id).in_(ids))).all()}
     for r in rows:
         r["library"] = track_state(tracks.get(r["track_id"]))
+    await listenbrainz.attach("recording", rows, "recording_id")
     rg = rel.get("release-group") or {}
     return {
         **logic.summarize_release(rel),
