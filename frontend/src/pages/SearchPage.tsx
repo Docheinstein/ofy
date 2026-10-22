@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownCircle, CheckCircle2, Loader2, Play, Search } from "lucide-react";
+import { ArrowDownCircle, CheckCircle2, Loader2, Play, Search, X } from "lucide-react";
 import { api, coverUrl, type SearchResult, type TrackHit } from "@/lib/api";
 import { useDebounced } from "@/lib/hooks";
 import { usePlayer } from "@/lib/player";
@@ -24,6 +24,7 @@ export function SearchPage() {
   const q = params.get("q") ?? "";
   const kind = (params.get("type") as Kind) ?? "all";
   const dq = useDebounced(q.trim(), 450);
+  const input = useRef<HTMLInputElement>(null);
   const { data, isFetching, error } = useQuery({
     queryKey: ["search", dq, kind],
     queryFn: () => api.get<SearchResult>(`/api/search?q=${encodeURIComponent(dq)}&type=${kind}`),
@@ -51,19 +52,33 @@ export function SearchPage() {
         <div className="relative max-w-xl">
           <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={input}
             autoFocus
             value={q}
             onChange={(e) => update({ q: e.target.value })}
             placeholder="What do you want to listen to?"
-            className="h-12 rounded-full border-none bg-elevated pl-12 text-base max-md:h-11"
+            className="h-12 rounded-full border-none bg-elevated pl-12 pr-20 text-base max-md:h-11"
             data-testid="search-input"
           />
           {/* centred by the wrapper: animate-spin's transform would override the icon's own translate */}
-          {isFetching && (
-            <span className="absolute right-4 top-1/2 -translate-y-1/2">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </span>
-          )}
+          <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {isFetching && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+            {q && (
+              <button
+                type="button"
+                onClick={() => {
+                  update({ q: "" });
+                  input.current?.focus();
+                }}
+                aria-label="Clear search"
+                title="Clear search"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                data-testid="search-clear"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </span>
         </div>
         {dq && (
           <Tabs value={kind} onValueChange={(v) => update({ type: v === "all" ? "" : v })} className="mt-4 max-md:mt-3">
