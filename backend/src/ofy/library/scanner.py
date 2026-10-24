@@ -59,8 +59,9 @@ class ScanResult:
 
 
 def lyrics_from_sidecars(previous: str, on_disk: str) -> str:
-    """A .lrc wins; without one keep plain (embedded in the tags)/instrumental/not_found, else none."""
-    if on_disk == "synced":
+    """A .lrc wins, then lyrics found embedded in the tags (only read for files the DB doesn't know at
+    that path, e.g. copied in); otherwise keep plain/instrumental/not_found, else none."""
+    if on_disk in ("synced", "plain"):
         return on_disk
     if previous in ("plain", "instrumental", "not_found"):
         return previous

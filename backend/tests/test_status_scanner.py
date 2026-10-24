@@ -23,6 +23,7 @@ def test_lyrics_from_sidecars():
     assert lyrics_from_sidecars("instrumental", "none") == "instrumental"
     assert lyrics_from_sidecars("not_found", "synced") == "synced"
     assert lyrics_from_sidecars("plain", "none") == "plain"  # embedded in the tags, no sidecar
+    assert lyrics_from_sidecars("none", "plain") == "plain"  # embedded lyrics read from a new file
 
 
 def test_deleted_audio_resets_track():
@@ -64,6 +65,12 @@ def test_reappeared_file_marks_done():
     db = [DbTrack("a", "none", None, "none")]
     (c,) = plan_reconcile(db, {"a": FoundFile("/m/a.opus", "opus", "synced", tags={"x": ["y"]})})
     assert c.fields["status"] == "done" and c.fields["file_format"] == "opus" and c.fields["lyrics_status"] == "synced"
+
+
+def test_copied_in_file_keeps_embedded_lyrics():
+    db = [DbTrack("a", "failed", None, "none")]
+    (c,) = plan_reconcile(db, {"a": FoundFile("/m/a.mp3", "mp3", "plain", tags={"x": ["y"]})})
+    assert c.fields["status"] == "done" and c.fields["lyrics_status"] == "plain" and c.fields["lyrics_path"] is None
 
 
 def test_unknown_file_creates_row():
