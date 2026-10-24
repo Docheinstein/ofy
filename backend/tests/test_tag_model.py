@@ -42,6 +42,15 @@ def test_build_from_fixture(fixture):
     assert m.youtube_video_id == "jNY_wLukVW0"
 
 
+def test_label_info_without_label(fixture):
+    # MusicBrainz lists a catalog number with "label": null when the label isn't known
+    rel = fixture("release_ok_computer.json")
+    rel["label-info"] = [{"catalog-number": "C0", "label": None}, *rel.get("label-info", [])]
+    m = build_tag_model(rel, _airbag(rel)["id"])
+    assert m.labels == ["EMI"]
+    assert "C0" in m.catalognumbers
+
+
 def test_path_values(fixture):
     rel = fixture("release_ok_computer.json")
     m = build_tag_model(rel, _airbag(rel)["id"])

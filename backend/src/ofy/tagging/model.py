@@ -187,6 +187,6 @@ def build_tag_model(
         musicbrainz_releasegroupid=rg.get("id", ""),
         musicbrainz_artistids=logic.artist_credit_ids(track_credit),
         musicbrainz_albumartistids=album_artist_ids,
-        musicbrainz_labelids=list(dict.fromkeys(li["label"]["id"] for li in labels if li.get("label", {}).get("id"))),
+        musicbrainz_labelids=list(dict.fromkeys(li["label"]["id"] for li in labels if (li.get("label") or {}).get("id"))),
         youtube_video_id=youtube_video_id,
     )
