@@ -20,6 +20,8 @@ PORT ?= 8080
 TERMUX := $(if $(or $(TERMUX_VERSION),$(wildcard /data/data/com.termux)),1)
 # Termux's own bin directory is the user's, so no root is needed there
 BINDIR ?= $(if $(TERMUX),$(or $(PREFIX),/data/data/com.termux/files/usr)/bin,$(HOME)/.local/bin)
+# App-menu launcher (Linux desktops); the desktop app also adds it itself, as GNOME needs it for the icon
+LAUNCHER := $(if $(and $(filter Linux,$(shell uname -s)),$(if $(TERMUX),,1)),$(or $(XDG_DATA_HOME),$(HOME)/.local/share)/applications/ofy.desktop)
 
 VENV := backend/.venv
 NODE_MODULES := frontend/node_modules/.package-lock.json
@@ -64,7 +66,7 @@ endif
 
 # The command is a small script pointing back at this checkout, so it always runs the current code and
 # rebuilds whatever is out of date first. Its arguments become ARGS, e.g. `ofy --debug`.
-install: build ## Install an `ofy` command in BINDIR (~/.local/bin; $PREFIX/bin on Termux) that does make run from anywhere
+install: build ## Install an `ofy` command in BINDIR (~/.local/bin; $PREFIX/bin on Termux) that does make run from anywhere, and an app-menu launcher running it (Linux)
 	mkdir -p "$(BINDIR)"
 	@# bash by its full path: Android has no /usr/bin/env
 	printf '%s\n' '#!$(shell command -v bash)' \
@@ -74,10 +76,13 @@ install: build ## Install an `ofy` command in BINDIR (~/.local/bin; $PREFIX/bin 
 	  > "$(BINDIR)/ofy"
 	chmod +x "$(BINDIR)/ofy"
 	@echo "Installed $(BINDIR)/ofy"
+ifneq ($(LAUNCHER),)
+	cd backend && uv run ofy-desktop --install-shortcut --exec "$(BINDIR)/ofy"
+endif
 	@[[ ":$$PATH:" == *":$(BINDIR):"* ]] || echo "warning: $(BINDIR) is not on PATH; add it to run ofy by name." >&2
 
-uninstall: ## Remove the `ofy` command installed by make install
-	rm -f "$(BINDIR)/ofy"
+uninstall: ## Remove the `ofy` command installed by make install (and the app-menu launcher)
+	rm -f "$(BINDIR)/ofy" $(if $(LAUNCHER),"$(LAUNCHER)")
 
 test: $(VENV) ## Run the backend unit tests
 ifdef TERMUX

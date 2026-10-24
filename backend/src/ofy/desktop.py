@@ -22,6 +22,10 @@ from pathlib import Path
 
 log = logging.getLogger("ofy.desktop")
 
+ASSETS = Path(__file__).resolve().parent / "assets"
+# Wayland app id / X11 WM_CLASS ("Ofy"): the same name as the launcher, so docks show its icon
+APP_ID = "ofy"
+
 SYSTEM_SITE_DIRS = (
     "/usr/lib/python3/dist-packages",  # Debian/Ubuntu
     f"/usr/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages",  # Arch, Fedora
@@ -135,6 +139,35 @@ def ensure_gtk_bindings(link_dir: Path) -> bool:
     return False
 
 
+def window_icon() -> Path:
+    """Icon of the window and its taskbar button: WinForms wants an .ico, GTK and Qt take a PNG."""
+    return ASSETS / ("icon.ico" if sys.platform == "win32" else "icon.png")
+
+
+def set_app_identity(gui: str | None) -> None:
+    """Name the process so the desktop shows Ofy's icon rather than Python's.
+
+    Windows groups taskbar buttons by app id (python.exe's otherwise). GNOME on Wayland ignores window
+    icons and takes the icon of the launcher whose name matches the window's app id, which GTK derives
+    from the program name ("ofy-desktop" otherwise) and Qt from the desktop file name.
+    """
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Ofy.Desktop")
+        elif gui == "gtk":
+            from gi.repository import GLib
+
+            GLib.set_prgname(APP_ID)
+        elif sys.platform.startswith("linux"):
+            from qtpy.QtGui import QGuiApplication
+
+            QGuiApplication.setDesktopFileName(APP_ID)
+    except Exception as e:  # cosmetic: never keeps the window from opening
+        log.warning("couldn't set the app id: %s", e)
+
+
 def desktop_entry(exec_path: str, icon: Path) -> str:
     """freedesktop.org launcher so Ofy shows up in the app menu / dock."""
     return (
@@ -150,17 +183,34 @@ def desktop_entry(exec_path: str, icon: Path) -> str:
     )
 
 
-def install_shortcut() -> Path:
-    from ofy.config import env
-
+def shortcut_path() -> Path:
     apps = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "applications"
-    apps.mkdir(parents=True, exist_ok=True)
-    script = Path(sys.argv[0]).resolve()
-    exec_path = str(script) if script.name == "ofy-desktop" else f"{sys.executable} -m ofy.desktop"
-    target = apps / "ofy.desktop"
-    target.write_text(desktop_entry(exec_path, env.static_dir / "favicon.svg"))
+    return apps / f"{APP_ID}.desktop"
+
+
+def install_shortcut(exec_path: str | None = None) -> Path:
+    """Write the launcher; it runs ``exec_path``, by default this ofy-desktop."""
+    if exec_path is None:
+        script = Path(sys.argv[0]).resolve()
+        exec_path = str(script) if script.name == "ofy-desktop" else f"{sys.executable} -m ofy.desktop"
+    target = shortcut_path()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(desktop_entry(exec_path, ASSETS / "icon.png"))
     target.chmod(0o755)
     return target
+
+
+def ensure_shortcut() -> None:
+    """Keep the launcher current, adding it if missing: without one GNOME (Wayland) shows no icon for
+    the window. An existing launcher keeps what it runs, e.g. the ``ofy`` command of make install."""
+    target = shortcut_path()
+    try:
+        current = target.read_text() if target.is_file() else ""
+        exec_path = next((line[5:] for line in current.splitlines() if line.startswith("Exec=")), None)
+        if current != desktop_entry(exec_path or "", ASSETS / "icon.png") or not exec_path:
+            install_shortcut(exec_path)
+    except OSError as e:
+        log.warning("couldn't update %s: %s", target, e)
 
 
 # --- self test ------------------------------------------------------------------------------------
@@ -245,9 +295,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="with --selftest: also try playing this URL path (e.g. /api/stream/<recording-id>)")
     p.add_argument("--install-shortcut", action="store_true",
                    help="add Ofy to the desktop app menu (Linux, freedesktop.org) and exit")
+    p.add_argument("--exec", dest="exec_path", metavar="COMMAND",
+                   help="with --install-shortcut: the command the launcher runs (default: this ofy-desktop)")
     args = p.parse_args(argv)
     if args.install_shortcut:
-        print(f"Installed {install_shortcut()}")
+        print(f"Installed {install_shortcut(args.exec_path)}")
         return 0
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -271,6 +323,9 @@ def main(argv: list[str] | None = None) -> int:
                   "(or use --gui qt after `uv sync --extra qt`)", file=sys.stderr)
             return 2
 
+    set_app_identity(gui)
+    if sys.platform.startswith("linux") and not args.selftest:
+        ensure_shortcut()
     import webview
 
     if not (env.static_dir / "index.html").is_file():
@@ -305,6 +360,7 @@ def main(argv: list[str] | None = None) -> int:
             _selftest if args.selftest else None,
             (window, args.play, result) if args.selftest else None,
             gui=gui, debug=args.debug, private_mode=False, storage_path=str(env.data_dir / "webview"),
+            icon=str(window_icon()),
         )
     finally:
         if server is not None:

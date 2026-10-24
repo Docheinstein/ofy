@@ -42,8 +42,10 @@ make run            # open the desktop app (builds first if anything is missing 
 | `make help` | Lists the targets |
 
 `make run` and `make web` rebuild automatically when the virtualenv or `node_modules` is missing or
-older than its lockfile, or when any UI source is newer than `frontend/dist`. To add Ofy to
-your app menu: `cd backend && uv run ofy-desktop --install-shortcut`.
+older than its lockfile, or when any UI source is newer than `frontend/dist`. On Linux the
+desktop app adds itself to your app menu (`~/.local/share/applications/ofy.desktop`) the first time it
+runs: GNOME takes a window's icon only from its launcher. `make install` points that launcher at the
+`ofy` command; `make uninstall` removes both.
 
 ### Desktop app
 

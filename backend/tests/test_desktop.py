@@ -123,6 +123,23 @@ def test_desktop_entry():
     assert e.startswith("[Desktop Entry]\n") and "Exec=/x/ofy-desktop\n" in e and "Terminal=false" in e
 
 
+def test_icons_exist():
+    assert desktop.window_icon().is_file()
+    assert (desktop.ASSETS / "icon.png").is_file() and (desktop.ASSETS / "icon.ico").is_file()
+
+
+def test_ensure_shortcut_adds_launcher_and_keeps_its_command(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    target = tmp_path / "applications" / "ofy.desktop"
+    desktop.ensure_shortcut()
+    assert f"Icon={desktop.ASSETS / 'icon.png'}\n" in target.read_text()
+    # a launcher from make install (or an older version, with the old icon) keeps what it runs
+    target.write_text(desktop.desktop_entry("/home/u/.local/bin/ofy", Path("/x/favicon.svg")))
+    desktop.ensure_shortcut()
+    e = target.read_text()
+    assert "Exec=/home/u/.local/bin/ofy\n" in e and f"Icon={desktop.ASSETS / 'icon.png'}\n" in e
+
+
 def test_migrate_legacy_data_dir(tmp_path, monkeypatch):
     from ofy import config
 
