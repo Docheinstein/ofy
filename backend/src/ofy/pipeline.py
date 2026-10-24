@@ -166,28 +166,35 @@ async def _download_track(track_id: str, release: dict, settings: Settings, work
     copied = await asyncio.to_thread(conv.convert, [s.path for s in sources], tmp_out, fmt,
                                      src_codec=src_codec, mp3_quality=settings.mp3_quality)
     log.info("%s: %s %s -> %s", t.title, "remuxed" if copied else "encoded", src_codec, fmt)
+    await finish_track(track_id, release, settings, tmp_out, fmt)
+
+
+async def finish_track(track_id: str, release: dict, settings: Settings, audio: Path, fmt: str, *,
+                       fetch_lyrics: bool = True) -> Path:
+    """Tag ``audio`` (cover included), fetch its lyrics and move it into the library: the track is done.
+    Returns where the file ended up."""
     # 3. tag
     t = update_track(track_id, stage="tagging")
     model = build_tag_model(release, track_id, youtube_video_id=t.video_id,
                             genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
     rg_id = (release.get("release-group") or {}).get("id")
     cover = await coverart.front_for_release(release["id"], rg_id, "1200")
-    await asyncio.to_thread(writers.write_tags, tmp_out, model, cover)
+    await asyncio.to_thread(writers.write_tags, audio, model, cover)
     # 4. lyrics (best effort, never fails the download)
     lyr: lyrics_service.LyricsOutcome | None = None
-    if settings.lyrics_fetch:
+    if settings.lyrics_fetch and fetch_lyrics:
         t = update_track(track_id, stage="lyrics")
-        audio_s = await asyncio.to_thread(writers.audio_length, tmp_out)
+        audio_s = await asyncio.to_thread(writers.audio_length, audio)
         lyr = await lyrics_service.fetch_for_model(model, settings, audio_s=audio_s)
         if lyr.embed_text and settings.lyrics_embed:
             try:
-                await asyncio.to_thread(writers.set_lyrics, tmp_out, lyr.embed_text)
+                await asyncio.to_thread(writers.set_lyrics, audio, lyr.embed_text)
             except Exception as e:  # pragma: no cover - defensive
                 log.warning("embedding lyrics failed: %s", e)
     # 5. move atomically into the library
-    dest = library_destination(settings, model, ext, track_id)
+    dest = library_destination(settings, model, conv.EXT[fmt], track_id)
     old = Path(t.file_path) if t.file_path else None
-    await asyncio.to_thread(atomic_move, tmp_out, dest)
+    await asyncio.to_thread(atomic_move, audio, dest)
     if old and old != dest:
         remove_with_sidecars(old)
     lyrics_status, lyrics_path = t.lyrics_status, t.lyrics_path
@@ -200,6 +207,7 @@ async def _download_track(track_id: str, release: dict, settings: Settings, work
         track_id, status="done", stage=None, progress=1.0, error=None, file_path=str(dest), file_format=fmt,
         lyrics_status=lyrics_status, lyrics_path=lyrics_path,
     )
+    return dest
 
 
 def library_destination(settings: Settings, model: TagModel, ext: str, track_id: str) -> Path:

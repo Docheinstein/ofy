@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Disc, EllipsisVertical, ExternalLink, Loader2, MicVocal, Play, RefreshCw, Search, User, Volume2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Disc, EllipsisVertical, ExternalLink, FolderInput, Loader2, MicVocal, Play, RefreshCw, Search, User, Volume2, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { api, coverUrl, isLocal, type LibraryAlbum, type LibraryTrack } from "@/lib/api";
+import { api, coverUrl, isLocal, type ImportResult, type LibraryAlbum, type LibraryTrack } from "@/lib/api";
 import { ArtistAvatar } from "@/components/ArtistAvatar";
 import { Button } from "@/components/ui/button";
 import { Cover } from "@/components/Cover";
@@ -87,6 +87,10 @@ export function LibraryPage() {
     onSuccess: () => qc.invalidateQueries(),
   });
   const lyrics = useMutation({ mutationFn: () => api.post<{ queued: number }>("/api/library/lyrics") });
+  const importFiles = useMutation({
+    mutationFn: () => api.post<ImportResult>("/api/library/import-files"),
+    onSuccess: () => qc.invalidateQueries(),
+  });
   // the song whose details (tags, match, lyrics) are open in the drawer
   const [open, setOpen] = useState<Opened | null>(null);
 
@@ -151,12 +155,22 @@ export function LibraryPage() {
         <Button variant="secondary" size="sm" onClick={() => lyrics.mutate()} disabled={lyrics.isPending} title="Fetch missing lyrics" className="max-md:w-8 max-md:px-0">
           {lyrics.isPending ? <Loader2 className="animate-spin" /> : <MicVocal />} <span className="max-md:hidden">Fetch missing lyrics</span>
         </Button>
+        <Button variant="secondary" size="sm" onClick={() => importFiles.mutate()} disabled={importFiles.isPending} title="Tag songs put into album folders by hand" className="max-md:w-8 max-md:px-0">
+          {importFiles.isPending ? <Loader2 className="animate-spin" /> : <FolderInput />} <span className="max-md:hidden">Tag added files</span>
+        </Button>
         <Button variant="secondary" size="sm" onClick={() => rescan.mutate()} disabled={rescan.isPending} title="Rescan" className="max-md:w-8 max-md:px-0" data-testid="rescan">
           {rescan.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />} <span className="max-md:hidden">Rescan</span>
         </Button>
       </div>
       {lyrics.data && <p className="mb-4 text-sm text-muted-foreground">Queued lyrics lookups for {lyrics.data.queued} tracks.</p>}
       {rescan.data && <p className="mb-4 text-sm text-muted-foreground">Rescan complete — {rescan.data.changed} changes.</p>}
+      {importFiles.data && (
+        <p className="mb-4 break-all text-sm text-muted-foreground">
+          Tagged {importFiles.data.imported.length} added songs in {importFiles.data.albums} album folders.
+          {importFiles.data.unmatched.length > 0 && ` ${importFiles.data.unmatched.length} didn't match a missing song of their album, so they stay as they are.`}
+          {importFiles.data.failed.length > 0 && ` Couldn't tag: ${importFiles.data.failed.join(", ")}.`}
+        </p>
+      )}
       <div className="relative mb-4 max-w-xl">
         <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input

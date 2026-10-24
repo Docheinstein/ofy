@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDownCircle, Loader2, MicVocal, Play, RefreshCw, Tags } from "lucide-react";
+import { ArrowDownCircle, FolderInput, Loader2, MicVocal, Play, RefreshCw, Tags } from "lucide-react";
 import { useState } from "react";
-import { api, coverUrl, isLocal, type ReleaseDetail, type ReleaseGroupDetail, type TrackRowData } from "@/lib/api";
+import { api, coverUrl, isLocal, type ImportResult, type ReleaseDetail, type ReleaseGroupDetail, type TrackRowData } from "@/lib/api";
 import { useTrackActions } from "@/lib/actions";
 import { useLiveVersion } from "@/lib/live";
 import { usePlayer } from "@/lib/player";
@@ -122,6 +122,16 @@ export function AlbumPage() {
             </Button>
           </>
         )}
+        {!local && lib.status !== "complete" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={() => actions.importFiles.mutate(r.id)} disabled={actions.importFiles.isPending} aria-label="Tag added files" className="max-md:w-8 max-md:px-0">
+                {actions.importFiles.isPending ? <Loader2 className="animate-spin" /> : <FolderInput />} <span className="max-md:hidden">Tag added files</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Songs you put in this album's folder: tag them, add the cover and lyrics</TooltipContent>
+          </Tooltip>
+        )}
         <div className="flex-1 max-md:hidden" />
         {!local && (
           <div className="w-72 max-md:-order-3 max-md:w-auto max-md:min-w-0 max-md:flex-1">
@@ -149,6 +159,7 @@ export function AlbumPage() {
         )}
         {rel.isFetching && <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />}
       </div>
+      {actions.importFiles.data && <ImportNote result={actions.importFiles.data} />}
 
       <TrackList
         releaseId={r.id}
@@ -165,6 +176,22 @@ export function AlbumPage() {
         {r.catalog_numbers.length > 0 && ` · ${r.catalog_numbers.join(", ")}`} {r.barcode && `· ${r.barcode}`}
       </div>
       <TrackDrawer track={open} releaseId={r.id} onClose={() => setOpen(null)} />
+    </div>
+  );
+}
+
+/** What "Tag added files" did, and where it looked when it found nothing. */
+function ImportNote({ result }: { result: ImportResult }) {
+  const { imported, failed, unmatched, folders = [] } = result;
+  return (
+    <div className="space-y-1 px-6 pb-4 text-sm text-muted-foreground max-md:px-4">
+      {imported.length > 0 ? (
+        <p>Tagged {imported.length} {imported.length === 1 ? "song" : "songs"}: {imported.join(", ")}. Lyrics are on their way.</p>
+      ) : (
+        !unmatched.length && !failed.length && <p className="break-all">No songs added to {folders.join(" or ") || "the album's folder"}.</p>
+      )}
+      {unmatched.length > 0 && <p className="break-all">Not songs of this album that are missing: {unmatched.join(", ")}</p>}
+      {failed.length > 0 && <p className="break-all text-destructive">Couldn't tag: {failed.join(", ")}</p>}
     </div>
   );
 }

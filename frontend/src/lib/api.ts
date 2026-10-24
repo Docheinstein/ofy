@@ -268,6 +268,15 @@ export interface TrackDetail {
   threshold: number;
 }
 
+/** Songs put into an album's folder by hand, tagged like downloads (POST .../import-files). */
+export interface ImportResult {
+  imported: string[];
+  failed: string[];
+  unmatched: string[];
+  folders?: string[]; // an album's
+  albums?: number; // the library's
+}
+
 export interface LibraryAlbum {
   release_id: string;
   release_group_id: string;

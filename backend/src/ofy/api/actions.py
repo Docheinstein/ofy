@@ -14,7 +14,7 @@ from sqlmodel import col, delete, select
 from ofy import listenbrainz
 from ofy.db import Album, Job, Track, load_settings, session
 from ofy.jobs import queue
-from ofy.library import local
+from ofy.library import imports, local
 from ofy.match.engine import match_release
 from ofy.mb import logic
 from ofy.mb.client import MusicBrainzError, NotFound, get_mb
@@ -225,6 +225,19 @@ def retag(release_id: str) -> dict[str, Any]:
         raise HTTPException(400, "Nothing downloaded for this release")
     queue.enqueue("retag", release_id=release_id)
     return {"queued": 1}
+
+
+@router.post("/release/{release_id}/import-files")
+async def import_release_files(release_id: str) -> dict[str, Any]:
+    """Tag the songs put into the album's folder by hand (cover, file name, lyrics), as if downloaded."""
+    _not_local(release_id)
+    return await _guard(imports.import_release(release_id))
+
+
+@router.post("/library/import-files")
+async def import_library_files() -> dict[str, Any]:
+    """The same for every album folder with songs that have no MusicBrainz ids."""
+    return await _guard(imports.import_library())
 
 
 @router.get("/lyrics/{recording_id}")

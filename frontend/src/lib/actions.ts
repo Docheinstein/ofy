@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, type ImportResult } from "./api";
 import { setLive } from "./live";
 
 export function useTrackActions(releaseId?: string) {
@@ -42,5 +42,9 @@ export function useTrackActions(releaseId?: string) {
     mutationFn: (rid: string) => api.post(`/api/release/${rid}/retag`),
     onSettled: refresh,
   });
-  return { download, downloadAlbum, retry, choose, lyrics, albumLyrics, retag };
+  const importFiles = useMutation({
+    mutationFn: (rid: string) => api.post<ImportResult>(`/api/release/${rid}/import-files`),
+    onSettled: refresh,
+  });
+  return { download, downloadAlbum, retry, choose, lyrics, albumLyrics, retag, importFiles };
 }
