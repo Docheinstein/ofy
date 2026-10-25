@@ -152,7 +152,7 @@ export function LibraryPage() {
       <div className="mb-6 flex flex-wrap items-center gap-4 max-md:mb-4 max-md:gap-2">
         <h1 className="text-3xl font-extrabold max-md:text-2xl">Your Library</h1>
         <div className="flex-1" />
-        <Button variant="secondary" size="sm" onClick={() => lyrics.mutate()} disabled={lyrics.isPending} title="Fetch missing lyrics" className="max-md:w-8 max-md:px-0">
+        <Button variant="secondary" size="sm" onClick={() => lyrics.mutate()} disabled={lyrics.isPending} title="Fetch lyrics for songs not looked up yet" className="max-md:w-8 max-md:px-0">
           {lyrics.isPending ? <Loader2 className="animate-spin" /> : <MicVocal />} <span className="max-md:hidden">Fetch missing lyrics</span>
         </Button>
         <Button variant="secondary" size="sm" onClick={() => importFiles.mutate()} disabled={importFiles.isPending} title="Tag songs put into album folders by hand" className="max-md:w-8 max-md:px-0">

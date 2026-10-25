@@ -61,6 +61,7 @@ class TagModel:
     # Provenance / extras
     youtube_video_id: str | None = None
     lyrics: str | None = None
+    lyrics_missing: str | None = None  # a lookup found none: not_found | instrumental (kept so it isn't redone)
 
     @property
     def isrc(self) -> str | None:

@@ -197,10 +197,10 @@ def refetch_lyrics(track_id: str) -> dict[str, Any]:
     return {"queued": 1}
 
 
-def _queue_missing_lyrics(tracks: list[Track]) -> int:
+def _queue_missing_lyrics(tracks: list[Track], statuses: tuple[str, ...] = ("none", "not_found")) -> int:
     n = 0
     for t in tracks:
-        if t.status == "done" and t.lyrics_status in ("none", "not_found"):
+        if t.status == "done" and t.lyrics_status in statuses:
             queue.enqueue("lyrics", track_id=t.track_id, release_id=t.release_id)
             n += 1
     return n
@@ -213,9 +213,10 @@ def album_missing_lyrics(release_id: str) -> dict[str, Any]:
 
 @router.post("/library/lyrics")
 def library_missing_lyrics() -> dict[str, Any]:
+    """Songs never looked up; those a lookup found nothing for are retried from their album or track."""
     with session() as s:
         tracks = list(s.exec(select(Track).where(Track.status == "done")).all())
-    return {"queued": _queue_missing_lyrics(tracks)}
+    return {"queued": _queue_missing_lyrics(tracks, ("none",))}
 
 
 @router.post("/release/{release_id}/retag")

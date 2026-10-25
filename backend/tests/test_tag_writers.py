@@ -6,7 +6,7 @@ import pytest
 from mutagen.id3 import ID3
 
 from ofy.tagging import writers
-from ofy.tagging.mapping import model_to_fields
+from ofy.tagging.mapping import lyrics_missing_from, model_to_fields
 from ofy.tagging.model import build_tag_model
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg required")
@@ -117,6 +117,26 @@ def test_rewrite_replaces_old_tags_and_set_lyrics(tmp_path, model, ext):
     assert writers.read_fields(path)["title"] == ["Airbag (corrected)"]
     writers.set_lyrics(path, None)
     assert writers.get_lyrics(path) is None
+
+
+@pytest.mark.parametrize("ext", ["mp3", "m4a", "opus"])
+def test_lyrics_missing_note_survives_a_retag(tmp_path, model, ext):
+    path = make_audio(tmp_path, ext)
+    writers.write_tags(path, model, None)
+    writers.set_lyrics_missing(path, "instrumental")
+    got = writers.read_fields(path)
+    assert got["haslyrics"] == ["0"] and got["instrumental"] == ["1"] and got["title"] == ["Airbag"]
+    assert lyrics_missing_from(got) == "instrumental"
+    assert "haslyrics" not in writers.EDITABLE and "instrumental" not in writers.EDITABLE
+    writers.set_lyrics_missing(path, "not_found")
+    got = writers.read_fields(path)
+    assert "instrumental" not in got and lyrics_missing_from(got) == "not_found"
+    model.lyrics_missing = lyrics_missing_from(got)  # what a retag carries over
+    writers.write_tags(path, model, None)
+    assert lyrics_missing_from(writers.read_fields(path)) == "not_found"
+    writers.set_lyrics_missing(path, None)
+    got = writers.read_fields(path)
+    assert "haslyrics" not in got and lyrics_missing_from(got) is None
 
 
 def test_multi_value_fields(tmp_path, model):

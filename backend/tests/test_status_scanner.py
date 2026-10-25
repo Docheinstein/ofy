@@ -24,6 +24,9 @@ def test_lyrics_from_sidecars():
     assert lyrics_from_sidecars("not_found", "synced") == "synced"
     assert lyrics_from_sidecars("plain", "none") == "plain"  # embedded in the tags, no sidecar
     assert lyrics_from_sidecars("none", "plain") == "plain"  # embedded lyrics read from a new file
+    # a new file whose tags note that an earlier lookup found nothing (e.g. on another machine)
+    assert lyrics_from_sidecars("none", "not_found") == "not_found"
+    assert lyrics_from_sidecars("none", "instrumental") == "instrumental"
 
 
 def test_deleted_audio_resets_track():

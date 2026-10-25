@@ -38,7 +38,7 @@ class LocalFile:
     path: str
     rel: str  # relative to the library folder, "/"-separated
     fmt: str
-    lyrics: str  # synced (.lrc sidecar) | plain (embedded) | none
+    lyrics: str  # synced (.lrc sidecar) | plain (embedded) | instrumental | not_found (noted in the tags) | none
     tags: dict[str, list[str]]
     length_ms: int | None = None
 

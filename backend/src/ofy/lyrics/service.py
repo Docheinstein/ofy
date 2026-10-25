@@ -29,6 +29,11 @@ class LyricsOutcome:
     error: str | None = None
 
     @property
+    def missing(self) -> str | None:
+        """What a lookup that found no lyrics notes in the tags (see ``writers.set_lyrics_missing``)."""
+        return self.status if self.status in ("not_found", "instrumental") else None
+
+    @property
     def embed_text(self) -> str | None:
         """Plain (unsynchronized) lyrics for embedding in tags."""
         if self.status in ("synced", "plain"):

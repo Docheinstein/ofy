@@ -342,8 +342,11 @@ destination and runs the transfer:
    completes as `done` (status stays `none`), and existing sidecars and embedded lyrics are never
    removed because of an error.
 6. Requests carry the Ofy User-Agent and are throttled (≥ 0.5 s apart).
-7. "Fetch lyrics again" (track drawer) and "Fetch missing lyrics" (album page, Library page) retry
-   tracks whose status is `none` or `not_found`.
+7. A lookup that finds nothing is noted in the file's tags: `HAS_LYRICS` = `0`, plus `INSTRUMENTAL` = `1`
+   for an instrumental (found lyrics remove both). So the status survives a rescan into a new database,
+   e.g. on another machine.
+8. "Fetch missing lyrics" on the Library page looks up only songs never looked up (status `none`);
+   "Fetch lyrics again" (track drawer) and "Fetch missing lyrics" (album page) also retry `not_found`.
 
 ## Tag mapping
 
@@ -382,6 +385,8 @@ Follows [Picard's tag mapping](https://picard-docs.musicbrainz.org/en/appendices
 | language | `TLAN` | `LANGUAGE` | `LANGUAGE` |
 | length (ms) | `TLEN` | `LENGTH` | `LENGTH` |
 | lyrics (plain) | `USLT` | `©lyr` | `LYRICS` |
+| no lyrics found (`0`) | `TXXX:HAS_LYRICS` | `HAS_LYRICS` | `HAS_LYRICS` |
+| instrumental (`1`, lyrics lookup) | `TXXX:INSTRUMENTAL` | `INSTRUMENTAL` | `INSTRUMENTAL` |
 | front cover | `APIC` (type 3) | `covr` | `METADATA_BLOCK_PICTURE` (type 3) |
 | musicbrainz_recordingid | `UFID:http://musicbrainz.org` | `MusicBrainz Track Id` | `MUSICBRAINZ_TRACKID` |
 | musicbrainz_trackid (release track id) | `TXXX:MusicBrainz Release Track Id` | `MusicBrainz Release Track Id` | `MUSICBRAINZ_RELEASETRACKID` |

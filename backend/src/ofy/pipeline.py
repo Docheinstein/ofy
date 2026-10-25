@@ -25,6 +25,7 @@ from ofy.match.engine import TrackMatch, match_release
 from ofy.match.scoring import COMPOSITE_SEP
 from ofy.mb.client import get_mb
 from ofy.tagging import writers
+from ofy.tagging.mapping import lyrics_missing_from
 from ofy.tagging.model import TagModel, build_tag_model
 from ofy.tracks import (
     ensure_release_rows,
@@ -191,6 +192,8 @@ async def finish_track(track_id: str, release: dict, settings: Settings, audio: 
                 await asyncio.to_thread(writers.set_lyrics, audio, lyr.embed_text)
             except Exception as e:  # pragma: no cover - defensive
                 log.warning("embedding lyrics failed: %s", e)
+        if lyr.missing:
+            await asyncio.to_thread(writers.set_lyrics_missing, audio, lyr.missing)
     # 5. move atomically into the library
     dest = library_destination(settings, model, conv.EXT[fmt], track_id)
     old = Path(t.file_path) if t.file_path else None
@@ -301,8 +304,10 @@ async def handle_retag(job: Job) -> None:
         path = Path(t.file_path)
         model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id,
                                 genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
+        fields = await asyncio.to_thread(writers.read_fields, path)
         if settings.lyrics_embed:
-            model.lyrics = await asyncio.to_thread(writers.get_lyrics, path)
+            model.lyrics = (fields.get("lyrics") or [None])[0]
+        model.lyrics_missing = lyrics_missing_from(fields)
         update_track(t.track_id, stage="tagging")
         await asyncio.to_thread(writers.write_tags, path, model, cover)
         # Metadata changes may imply a new path: move audio + sidecars along.
@@ -353,8 +358,10 @@ async def handle_lyrics(job: Job) -> None:
         audio_s = await asyncio.to_thread(writers.audio_length, path)
         lyr = await lyrics_service.fetch_for_model(model, settings, audio_s=audio_s)
         # A failed lookup keeps what's there: the tags may hold the only copy of plain lyrics.
-        if settings.lyrics_embed and lyr.status != "error":
-            await asyncio.to_thread(writers.set_lyrics, path, lyr.embed_text)
+        if lyr.status != "error":
+            if settings.lyrics_embed:
+                await asyncio.to_thread(writers.set_lyrics, path, lyr.embed_text)
+            await asyncio.to_thread(writers.set_lyrics_missing, path, lyr.missing)
         status, lp = lyrics_service.write_sidecar(path, lyr, model, settings)
     finally:
         update_track(t.track_id, stage=None, publish=False)

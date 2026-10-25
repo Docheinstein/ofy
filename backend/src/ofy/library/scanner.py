@@ -19,6 +19,7 @@ from ofy.db import Album, Track, load_settings, session
 from ofy.events import hub
 from ofy.library import local
 from ofy.tagging import writers
+from ofy.tagging.mapping import lyrics_missing_from
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class DbTrack:
 class FoundFile:
     path: str
     fmt: str
-    lyrics: str  # synced (.lrc on disk) | plain (embedded, only read for unknown files) | none
+    lyrics: str  # synced (.lrc on disk) | plain (embedded) | instrumental | not_found (noted in the tags; both only read for unknown files) | none
     tags: dict[str, list[str]] | None = None  # only read for files the DB doesn't know
 
 
@@ -60,12 +61,13 @@ class ScanResult:
 
 def lyrics_from_sidecars(previous: str, on_disk: str) -> str:
     """A .lrc wins, then lyrics found embedded in the tags (only read for files the DB doesn't know at
-    that path, e.g. copied in); otherwise keep plain/instrumental/not_found, else none."""
+    that path, e.g. copied in); otherwise keep plain/instrumental/not_found, else what the tags note
+    of an earlier lookup that found none (instrumental/not_found), else none."""
     if on_disk in ("synced", "plain"):
         return on_disk
     if previous in ("plain", "instrumental", "not_found"):
         return previous
-    return "none"
+    return on_disk if on_disk in ("instrumental", "not_found") else "none"
 
 
 def plan_reconcile(db: list[DbTrack], found: dict[str, FoundFile]) -> list[Change]:
@@ -170,8 +172,8 @@ def scan_library() -> ScanResult:
         except Exception as e:
             log.info("unreadable file %s: %s", p, e)
             continue
-        if lyr == "none" and tags.get("lyrics"):
-            lyr = "plain"
+        if lyr == "none":
+            lyr = "plain" if tags.get("lyrics") else (lyrics_missing_from(tags) or "none")
         tid = (tags.get("musicbrainz_trackid") or [None])[0]
         if not tid or not (tags.get("musicbrainz_albumid") or [None])[0]:
             length = writers.audio_length(p)

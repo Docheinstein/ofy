@@ -44,6 +44,8 @@ ID3_MAP: dict[str, str] = {
     "musicbrainz_artistid": "TXXX:MusicBrainz Artist Id",
     "musicbrainz_albumartistid": "TXXX:MusicBrainz Album Artist Id",
     "youtube_video_id": "TXXX:YOUTUBE_VIDEO_ID",
+    "haslyrics": "TXXX:HAS_LYRICS",
+    "instrumental": "TXXX:INSTRUMENTAL",
     # special-cased in the writer:
     #   tracknumber/totaltracks -> TRCK "n/t", discnumber/totaldiscs -> TPOS "n/t"
     #   musicbrainz_recordingid -> UFID owner "http://musicbrainz.org"
@@ -85,6 +87,8 @@ MP4_MAP: dict[str, str] = {
     "musicbrainz_artistid": FF + "MusicBrainz Artist Id",
     "musicbrainz_albumartistid": FF + "MusicBrainz Album Artist Id",
     "youtube_video_id": FF + "YOUTUBE_VIDEO_ID",
+    "haslyrics": FF + "HAS_LYRICS",
+    "instrumental": FF + "INSTRUMENTAL",
     "lyrics": "\xa9lyr",
     # special-cased: tracknumber/totaltracks -> trkn, discnumber/totaldiscs -> disk,
     #   compilation -> cpil (bool), cover -> covr
@@ -129,6 +133,8 @@ VORBIS_MAP: dict[str, str] = {
     "musicbrainz_artistid": "MUSICBRAINZ_ARTISTID",
     "musicbrainz_albumartistid": "MUSICBRAINZ_ALBUMARTISTID",
     "youtube_video_id": "YOUTUBE_VIDEO_ID",
+    "haslyrics": "HAS_LYRICS",
+    "instrumental": "INSTRUMENTAL",
     "lyrics": "LYRICS",
     # cover -> METADATA_BLOCK_PICTURE (base64 FLAC picture block, type 3)
 }
@@ -183,5 +189,25 @@ def model_to_fields(m: TagModel) -> dict[str, list[str]]:
         "musicbrainz_albumartistid": _s(m.musicbrainz_albumartistids),
         "youtube_video_id": _s(m.youtube_video_id),
         "lyrics": _s(m.lyrics),
+        **lyrics_missing_fields(m.lyrics_missing),
     }
     return {k: v for k, v in fields.items() if v}
+
+
+# A lyrics lookup that found none, noted in the tags: HAS_LYRICS = 0, and INSTRUMENTAL = 1 when it's
+# an instrumental. Found lyrics remove both.
+LYRICS_MISSING_NAMES = ("haslyrics", "instrumental")
+
+
+def lyrics_missing_fields(status: str | None) -> dict[str, list[str]]:
+    """The tags noting ``status`` (not_found | instrumental | None); an empty list removes a tag."""
+    return {"haslyrics": ["0"] if status else [], "instrumental": ["1"] if status == "instrumental" else []}
+
+
+def lyrics_missing_from(fields: dict[str, list[str]]) -> str | None:
+    """not_found | instrumental as noted in the tags, else None."""
+    if (fields.get("instrumental") or [""])[0] == "1":
+        return "instrumental"
+    if (fields.get("haslyrics") or [""])[0] == "0":
+        return "not_found"
+    return None

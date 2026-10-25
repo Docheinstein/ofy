@@ -12,7 +12,16 @@ from mutagen.mp3 import MP3
 from mutagen.mp4 import MP4, MP4Cover, MP4FreeForm
 from mutagen.oggopus import OggOpus
 
-from ofy.tagging.mapping import FF, ID3_MAP, MP4_MAP, UFID_OWNER, VORBIS_MAP, model_to_fields
+from ofy.tagging.mapping import (
+    FF,
+    ID3_MAP,
+    LYRICS_MISSING_NAMES,
+    MP4_MAP,
+    UFID_OWNER,
+    VORBIS_MAP,
+    lyrics_missing_fields,
+    model_to_fields,
+)
 from ofy.tagging.model import TagModel
 
 UTF8 = id3.Encoding.UTF8
@@ -163,7 +172,7 @@ def _write_vorbis(path: Path, fields: dict[str, list[str]], cover: bytes | None)
 # --- edit -------------------------------------------------------------------------------------
 
 # Every internal name the editor may set or remove; lyrics have their own flow (sidecar files + set_lyrics).
-EDITABLE: list[str] = [name for name in VORBIS_MAP if name != "lyrics"]
+EDITABLE: list[str] = [name for name in VORBIS_MAP if name != "lyrics" and name not in LYRICS_MISSING_NAMES]
 NUMERIC = ("tracknumber", "totaltracks", "discnumber", "totaldiscs")
 
 
@@ -282,6 +291,36 @@ def set_lyrics(path: Path, text: str | None) -> None:
             f.tags["LYRICS"] = [text]
         elif "LYRICS" in f.tags:
             del f.tags["LYRICS"]
+        f.save()
+
+
+def set_lyrics_missing(path: Path, status: str | None) -> None:
+    """Note in the tags that a lookup found no lyrics ("not_found" | "instrumental"), so a library-wide
+    fetch skips the song on any machine; None removes the note. Other tags are left alone."""
+    fields = lyrics_missing_fields(status)
+    k = kind_of(path)
+    if k == "mp3":
+        tags = id3.ID3(path)
+        for name, values in fields.items():
+            tags.delall(ID3_MAP[name])
+            if values:
+                tags.add(_id3_frame(ID3_MAP[name], values))
+        tags.save(path, v2_version=4, v1=0)
+    elif k == "m4a":
+        f = MP4(path)
+        for name, values in fields.items():
+            if values:
+                f.tags[MP4_MAP[name]] = [MP4FreeForm(v.encode("utf-8")) for v in values]
+            else:
+                f.tags.pop(MP4_MAP[name], None)
+        f.save()
+    else:
+        f = OggOpus(path)
+        for name, values in fields.items():
+            if values:
+                f.tags[VORBIS_MAP[name]] = values
+            elif VORBIS_MAP[name] in f.tags:
+                del f.tags[VORBIS_MAP[name]]
         f.save()
 
 
