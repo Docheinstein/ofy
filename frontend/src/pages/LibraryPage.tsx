@@ -318,7 +318,6 @@ function ArtistNode({ group: g, filtered, expanded, onOpen }: { group: Group; fi
         </button>
         {g.artistId && (
           <>
-            <SyncToggle target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} hideWhenOff />
             {!isLocal(g.artistId) && (
               <Link
                 to={`/artist/${g.artistId}`}
@@ -329,6 +328,7 @@ function ArtistNode({ group: g, filtered, expanded, onOpen }: { group: Group; fi
                 <ExternalLink className="h-4 w-4" />
               </Link>
             )}
+            <SyncToggle target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} hideWhenOff />
           </>
         )}
       </div>
@@ -372,7 +372,6 @@ function AlbumNode({ shown: { album: a, songs, reveal }, filtered, expanded, onO
             </div>
           </div>
         </button>
-        <SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} hideWhenOff />
         <Link
           to={`/album/${a.release_group_id}`}
           aria-label={`Open ${a.title}`}
@@ -381,6 +380,7 @@ function AlbumNode({ shown: { album: a, songs, reveal }, filtered, expanded, onO
         >
           <ExternalLink className="h-4 w-4" />
         </Link>
+        <SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} hideWhenOff />
       </div>
       {open && (
         <div className="ml-8 border-l pl-2">
@@ -654,8 +654,8 @@ function ArtistView({ group: g, filtered, onBack, onAlbum }: { group: Group; fil
         </div>
         {g.artistId && (
           <div className="flex flex-wrap justify-center gap-2">
-            <SyncToggle variant="button" className="h-8 px-3 text-xs" target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} />
             {!isLocal(g.artistId) && <OpenPage to={`/artist/${g.artistId}`} label="Artist page" />}
+            <SyncToggle variant="button" className="h-8 px-3 text-xs" target={{ kind: "artist", id: g.artistId, title: g.artist, subtitle: "Artist" }} />
           </div>
         )}
       </header>
