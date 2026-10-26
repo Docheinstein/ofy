@@ -349,8 +349,14 @@ class SyncState:
     ok: bool | None = None
     error: str | None = None
     percent: int = 0
-    speed: str = ""
-    eta: str = ""
+    speed: str = ""  # rsync's current speed
+    # A sync first checks (an rsync dry run) what needs copying, then copies it: "checking" | "copying".
+    phase: str = ""
+    to_copy: int = 0  # files the check found to copy
+    to_copy_bytes: int = 0
+    copied_bytes: int = 0  # of the files copied so far
+    copy_started_at: float | None = None
+    eta_seconds: int | None = None  # from the average speed so far
     files: int = 0
     bytes: int = 0
     pending: int = 0
@@ -377,12 +383,15 @@ def _publish(force: bool = False) -> None:
         hub.publish({"type": "sync", **{k: v for k, v in state.to_dict().items() if k != "changes"}})
 
 
-def parse_line(line: str) -> None:
-    """Fold one line of rsync output (itemized change or progress2 tick) into ``state``."""
+def parse_line(line: str, sizes: dict[str, int] | None = None) -> None:
+    """Fold one line of rsync output (itemized change or progress2 tick) into ``state``; ``sizes`` (path ->
+    bytes) counts the bytes of the files copied. rsync's own time column is left out: it shows the time
+    left while a file copies but the time taken once it's done."""
     if not line.strip():
         return
     if m := PROGRESS.match(line):
-        state.percent, state.speed, state.eta = int(m.group(2)), m.group(3), m.group(4)
+        state.percent, state.speed = int(m.group(2)), m.group(3)
+        _estimate()
         return
     if line.startswith("*deleting"):
         if line.rstrip().endswith("/"):
@@ -392,8 +401,44 @@ def parse_line(line: str) -> None:
             state.changes.append("- " + line.split(None, 1)[1].strip())
     elif len(line) > 12 and line[0] in "<>" and line[1] == "f":
         state.transferred += 1
+        state.copied_bytes += (sizes or {}).get(line[12:].strip(), 0)
         if len(state.changes) < MAX_LISTED:
             state.changes.append("+ " + line[12:].strip())
+        _estimate()
+
+
+def _estimate() -> None:
+    """Time left at the average speed so far (bytes of the files copied / time copying)."""
+    if state.copy_started_at is None or state.copied_bytes <= 0:
+        return
+    took = time.time() - state.copy_started_at
+    if took >= 5:
+        state.eta_seconds = round(took * (state.to_copy_bytes - state.copied_bytes) / state.copied_bytes)
+
+
+async def _rsync(settings: Settings, stage_dir: Path, dry_run: bool, sizes: dict[str, int]) -> None:
+    """Run rsync, folding its output into ``state``; raises SyncError when it fails."""
+    global _proc
+    cmd = rsync_command(settings, stage_dir, dry_run)
+    log.info("sync: %s", shlex.join(cmd))
+    _proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL,
+        env={**os.environ, "LC_ALL": "C", **ssh_env(settings)}, start_new_session=bool(settings.sync_password))
+    stderr_task = asyncio.create_task(_proc.stderr.read())  # type: ignore[union-attr]
+    buf = ""
+    while chunk := await _proc.stdout.read(4096):  # type: ignore[union-attr]
+        buf += chunk.decode(errors="replace")
+        *lines, buf = re.split(r"[\r\n]", buf)
+        for line in lines:
+            parse_line(line, sizes)
+        _publish()
+    parse_line(buf, sizes)
+    code = await _proc.wait()
+    err = (await stderr_task).decode(errors="replace")
+    if code in (-15, 20):  # terminated / SIGTERM received by rsync
+        raise SyncError("Cancelled")
+    if code != 0:
+        raise SyncError(_explain(err, settings))
 
 
 async def _run(settings: Settings, dry_run: bool) -> None:
@@ -405,30 +450,21 @@ async def _run(settings: Settings, dry_run: bool) -> None:
             raise SyncError("Nothing selected is downloaded — syncing now would empty the destination")
         stage_dir = env.data_dir / "sync" / "stage"
         await asyncio.to_thread(stage, plan, stage_dir)
+        sizes = await asyncio.to_thread(lambda: {str(rel): src.stat().st_size for rel, src in plan.files})
         if not settings.sync_host.strip():
             Path(_remote_path(settings)).mkdir(parents=True, exist_ok=True)
-        cmd = rsync_command(settings, stage_dir, dry_run)
-        log.info("sync: %s", shlex.join(cmd))
-        _proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, stdin=asyncio.subprocess.DEVNULL,
-            env={**os.environ, "LC_ALL": "C", **ssh_env(settings)}, start_new_session=bool(settings.sync_password))
-        stderr_task = asyncio.create_task(_proc.stderr.read())  # type: ignore[union-attr]
-        buf = ""
-        while chunk := await _proc.stdout.read(4096):  # type: ignore[union-attr]
-            buf += chunk.decode(errors="replace")
-            *lines, buf = re.split(r"[\r\n]", buf)
-            for line in lines:
-                parse_line(line)
-            _publish()
-        parse_line(buf)
-        code = await _proc.wait()
-        err = (await stderr_task).decode(errors="replace")
-        if code == 0:
-            state.ok, state.percent = True, 100
-        elif code in (-15, 20):  # terminated / SIGTERM received by rsync
-            state.ok, state.error = False, "Cancelled"
-        else:
-            state.ok, state.error = False, _explain(err, settings)
+        # A dry run first tells what needs copying, so the copy can show how far along it is.
+        state.phase = "checking"
+        _publish(force=True)
+        await _rsync(settings, stage_dir, True, sizes)
+        if not dry_run:
+            state.to_copy, state.to_copy_bytes = state.transferred, state.copied_bytes
+            state.transferred = state.deleted = state.copied_bytes = 0
+            state.changes, state.percent = [], 0
+            state.phase, state.copy_started_at = "copying", time.time()
+            _publish(force=True)
+            await _rsync(settings, stage_dir, False, sizes)
+        state.ok, state.percent, state.eta_seconds = True, 100, 0
     except SyncError as e:
         state.ok, state.error = False, str(e)
     except Exception as e:

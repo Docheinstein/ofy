@@ -92,7 +92,12 @@ export interface SyncStatus {
   error: string | null;
   percent: number;
   speed: string;
-  eta: string;
+  phase: "" | "checking" | "copying";
+  to_copy: number;
+  to_copy_bytes: number;
+  copied_bytes: number;
+  copy_started_at: number | null;
+  eta_seconds: number | null;
   files: number;
   bytes: number;
   pending: number;

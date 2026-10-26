@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, CheckCircle2, Disc3, Download, Eye, FileUp, Loader2, Music, Plug, Square, Upload, User, X, XCircle } from "lucide-react";
 import { api, isLocal, type Settings, type SyncKind, type SyncListImport, type SyncStatus, type SyncSummary } from "@/lib/api";
 import { useSyncSelection } from "@/lib/sync";
-import { formatBytes } from "@/lib/utils";
+import { formatBytes, formatSeconds } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -292,20 +292,56 @@ function Run() {
   );
 }
 
+/** Seconds since ``since`` (unix time), ticking every second. */
+function useElapsed(since: number | null): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (since == null) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [since]);
+  return since == null ? 0 : Math.max(0, Math.round(now / 1000 - since));
+}
+
+function RunProgress({ st }: { st: SyncStatus }) {
+  const elapsed = useElapsed(st.copy_started_at);
+  if (st.phase !== "copying") {
+    // The check (an rsync dry run) has no progress to show; it is the whole run of a preview.
+    return (
+      <>
+        <span className="text-sm font-semibold">{st.dry_run ? "Checking what would change…" : "Checking what needs copying…"}</span>
+        <div className="h-1.5 animate-pulse rounded-full bg-muted" />
+      </>
+    );
+  }
+  const share = st.to_copy_bytes ? Math.min(100, (100 * st.copied_bytes) / st.to_copy_bytes) : st.percent;
+  const times = [
+    st.speed,
+    `${formatSeconds(elapsed)} elapsed`,
+    st.eta_seconds != null && st.transferred < st.to_copy ? `about ${formatSeconds(st.eta_seconds)} left` : "",
+  ];
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 text-sm">
+        <span className="font-semibold" data-testid="sync-count">
+          Syncing… {st.transferred.toLocaleString()} / {st.to_copy.toLocaleString()} files
+          <span className="font-normal text-muted-foreground"> · {formatBytes(st.copied_bytes)} of {formatBytes(st.to_copy_bytes)}</span>
+        </span>
+        <span className="tabular-nums text-muted-foreground">{times.filter(Boolean).join(" · ")}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${share}%` }} />
+      </div>
+    </>
+  );
+}
+
 function RunStatus({ st }: { st: SyncStatus }) {
   const what = st.dry_run ? "Preview" : "Sync";
   return (
     <div className="space-y-3 rounded-lg bg-elevated p-4" data-testid="sync-status">
       {st.running ? (
-        <>
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-semibold">{st.dry_run ? "Checking what would change…" : "Syncing…"}</span>
-            <span className="tabular-nums text-muted-foreground">{[st.speed, st.eta && st.eta !== "0:00:00" ? `${st.eta} left` : ""].filter(Boolean).join(" · ")}</span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${st.percent}%` }} />
-          </div>
-        </>
+        <RunProgress st={st} />
       ) : st.ok ? (
         <p className="flex items-center gap-2 text-sm font-semibold">
           <CheckCircle2 className="h-4 w-4 text-primary" />

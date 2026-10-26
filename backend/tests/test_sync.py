@@ -142,10 +142,12 @@ def test_api_never_returns_the_password(tmp_db):
 
 def test_parse_rsync_output():
     sync.state = sync.SyncState()
+    sizes = {"PF/Meddle/PF - Echoes.mp3": 1000}
     for line in ["<f+++++++++ PF/Meddle/PF - Echoes.mp3", "cd+++++++++ PF/", "*deleting   Old/song.mp3", "*deleting   Old/",
                  "     12,345,678  42%   10.50MB/s    0:00:07 (xfr#1, to-chk=3/9)"]:
-        sync.parse_line(line)
+        sync.parse_line(line, sizes)
     assert sync.state.transferred == 1 and sync.state.deleted == 1 and sync.state.percent == 42
+    assert sync.state.copied_bytes == 1000
     assert sync.state.speed == "10.50MB/s"
     assert sync.state.changes == ["+ PF/Meddle/PF - Echoes.mp3", "- Old/song.mp3"]
 
@@ -167,12 +169,15 @@ async def test_sync_to_local_folder_mirrors_selection(library, tmp_path, monkeyp
     st = await run(dry_run=True)
     assert st.transferred == 4 and st.dry_run and not any(dest.iterdir())
     st = await run()
-    assert st.transferred == 4
+    assert st.transferred == st.to_copy == 4  # the check found what the copy then copied
+    assert st.copied_bytes == st.to_copy_bytes == 10 * 3 + len("[00:01.00] lyrics")
+    assert st.phase == "copying" and st.eta_seconds == 0
     assert sorted(str(p.relative_to(dest)) for p in dest.rglob("*") if p.is_file()) == [
         "FM/Rumours/FM - Dreams.mp3", "PF/Meddle/PF - Echoes.lrc", "PF/Meddle/PF - Echoes.mp3",
         "PF/Meddle/PF - One of These Days.mp3"]
     assert not (dest / "PF/Meddle/PF - Echoes.mp3").is_symlink()
-    assert (await run()).transferred == 0  # nothing changed
+    st = await run()
+    assert st.transferred == st.to_copy == 0  # nothing changed
 
     _select("album", "meddle", on=False)
     st = await run()
@@ -267,3 +272,10 @@ def test_list_api_replaces_the_selection(library):
         assert got == {"selected": 1, "unmatched": ["Nope"]}
         assert [(x["kind"], x["ref_id"]) for x in c.get("/api/sync/selection").json()] == [("artist", "fm")]
         assert c.get("/api/sync/selection/export").text == "FM\n"
+
+
+def test_time_left_follows_the_average_speed(monkeypatch):
+    sync.state = sync.SyncState(to_copy_bytes=4000, copied_bytes=1000, copy_started_at=100.0)
+    monkeypatch.setattr(sync.time, "time", lambda: 160.0)  # a quarter copied in a minute
+    sync._estimate()
+    assert sync.state.eta_seconds == 180
