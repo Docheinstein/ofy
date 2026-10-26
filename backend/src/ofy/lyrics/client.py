@@ -12,6 +12,7 @@ from ofy.ratelimit import RateLimiter
 _limiter = RateLimiter(0.5)
 RATE_LIMIT_RETRIES = 6
 BUSY = (429, 502, 503, 504)  # too many requests, or the server overloaded: worth waiting for
+MAX_DURATION = 3600  # LRCLIB turns down longer durations (400), so a longer song is looked up without one
 
 
 class LrclibError(RuntimeError):
@@ -54,7 +55,7 @@ class LrclibClient:
 
     async def get(self, *, artist: str, title: str, album: str, duration: int | None) -> dict[str, Any] | None:
         params: dict[str, Any] = {"artist_name": artist, "track_name": title, "album_name": album}
-        if duration is not None:
+        if duration is not None and duration <= MAX_DURATION:
             params["duration"] = duration
         r = await self._get("/api/get", params)
         if r.status_code == 404:

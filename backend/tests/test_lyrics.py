@@ -137,6 +137,13 @@ async def test_get_hit_sends_expected_params():
     assert ua.startswith("Ofy/")
 
 
+
+async def test_get_leaves_out_a_duration_over_an_hour():
+    calls = []
+    await fetch_for_model(model(), Settings(), audio_s=3612.0, transport=transport(rec(), calls=calls))
+    path, params, _ = calls[0]
+    assert path == "/api/get" and "duration" not in params
+
 async def test_404_falls_back_to_search():
     calls = []
     out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S,
