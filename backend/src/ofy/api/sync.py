@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlmodel import col, select
 
@@ -43,6 +44,28 @@ def set_selection(body: Toggle) -> dict[str, Any]:
         s.commit()
     return {"ok": True}
 
+
+
+@router.get("/selection/export", response_class=PlainTextResponse)
+def export_selection() -> str:
+    """The selection as a list of paths relative to the library (as rsync's --files-from reads)."""
+    return sync.export_list(Path(load_settings().library_path))
+
+
+class ListFile(BaseModel):
+    text: str
+
+
+@router.post("/selection/import")
+def import_selection(body: ListFile) -> dict[str, Any]:
+    """Replace the selection with what a list file names; lines matching nothing are returned."""
+    result = sync.import_list(body.text, Path(load_settings().library_path))
+    with session() as s:
+        for row in s.exec(select(SyncSelection)).all():
+            s.delete(row)
+        s.add_all(result.selection)
+        s.commit()
+    return {"selected": len(result.selection), "unmatched": result.unmatched}
 
 @router.get("/summary")
 async def summary() -> dict[str, Any]:

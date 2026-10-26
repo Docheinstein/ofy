@@ -351,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
         instance_file(env.data_dir).write_text(json.dumps({"url": url, "pid": os.getpid()}))
         log.info("backend running at %s", url)
 
+    webview.settings["ALLOW_DOWNLOADS"] = True  # the Sync page's "Export list" saves a file
     window = webview.create_window(
         "Ofy", url, width=1440, height=920, min_size=(900, 600), background_color="#000000",
     )

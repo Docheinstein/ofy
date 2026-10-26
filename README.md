@@ -314,6 +314,12 @@ destination and runs the transfer:
   use a folder only Ofy writes to. A sync that would empty the destination is refused.
 * **Preview changes** is a dry run listing what would be copied and deleted. Progress is pushed over
   the WebSocket; a running sync can be cancelled.
+* **Export list / Import list** save the selection to a text file, or replace it with one: a path
+  relative to the library per line (what `rsync --files-from` reads), an artist's folder, an album's
+  folder or a song's file. A line matches its path or, failing that, the one path that differs only
+  in case, punctuation, accents, a leading "The" or "&"/"and"; lines matching nothing (or more than
+  one path) are left out and listed. An artist's folder selects the artist when all their songs are
+  in folders the list names, otherwise the albums in that folder.
 
 ## Lyrics behaviour
 

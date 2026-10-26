@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, CheckCircle2, Disc3, Eye, Loader2, Music, Plug, Square, Upload, User, X, XCircle } from "lucide-react";
-import { api, isLocal, type Settings, type SyncKind, type SyncStatus, type SyncSummary } from "@/lib/api";
+import { AlertTriangle, Check, CheckCircle2, Disc3, Download, Eye, FileUp, Loader2, Music, Plug, Square, Upload, User, X, XCircle } from "lucide-react";
+import { api, isLocal, type Settings, type SyncKind, type SyncListImport, type SyncStatus, type SyncSummary } from "@/lib/api";
 import { useSyncSelection } from "@/lib/sync";
 import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -134,7 +134,10 @@ function Selection() {
   });
   return (
     <section className="space-y-4">
-      <h2 className="text-lg font-bold">Selected for sync</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-bold">Selected for sync</h2>
+        <ListFile />
+      </div>
       {summary && (
         <p className="text-sm text-muted-foreground" data-testid="sync-summary">
           {summary.tracks} songs · {summary.files} files · {formatBytes(summary.bytes)}
@@ -182,6 +185,74 @@ function Selection() {
         );
       })}
     </section>
+  );
+}
+
+/** The selection as a list of folders and files relative to the library, one per line, the way
+ * rsync's --files-from reads it: saved to a file, or read back from one (replacing the selection). */
+function ListFile() {
+  const qc = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const exportList = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/sync/selection/export");
+      if (!res.ok) throw new Error(res.statusText);
+      const url = URL.createObjectURL(new Blob([await res.text()], { type: "text/plain" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ofy-sync.list";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+  const importList = useMutation({
+    mutationFn: async (file: File) => api.post<SyncListImport>("/api/sync/selection/import", { text: await file.text() }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["sync-selection"] });
+      qc.invalidateQueries({ queryKey: ["sync-summary"] });
+    },
+  });
+  const result = importList.data;
+  return (
+    <div className="flex flex-col items-end gap-2">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => exportList.mutate()} disabled={exportList.isPending} data-testid="sync-export">
+          <Download /> Export list
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => input.current?.click()} disabled={importList.isPending} data-testid="sync-import">
+          {importList.isPending ? <Loader2 className="animate-spin" /> : <FileUp />} Import list
+        </Button>
+        <input
+          ref={input}
+          type="file"
+          accept=".list,.txt,text/plain"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file && window.confirm("Replace what's selected for sync with the artists, albums and songs in this list?")) {
+              importList.mutate(file);
+            }
+          }}
+        />
+      </div>
+      {(exportList.error || importList.error) && (
+        <p className="text-sm text-destructive">{((exportList.error ?? importList.error) as Error).message}</p>
+      )}
+      {result && (
+        <div className="text-right text-sm text-muted-foreground" data-testid="sync-import-result">
+          <p>
+            Selected {result.selected} {result.selected === 1 ? "item" : "items"} from the list
+            {result.unmatched.length > 0 && `; ${result.unmatched.length} lines match nothing in the library and were left out:`}
+          </p>
+          {result.unmatched.length > 0 && (
+            <div className="mt-1 max-h-40 overflow-y-auto rounded bg-black/30 p-2 text-left font-mono text-xs">
+              {result.unmatched.map((l) => <div key={l}>{l}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

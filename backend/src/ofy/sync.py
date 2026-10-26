@@ -16,14 +16,16 @@ import shlex
 import shutil
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from sqlmodel import select
 
 from ofy.config import Settings, env
 from ofy.db import Album, SyncSelection, Track, session
+from ofy.download.paths import artist_key
 from ofy.events import hub
+from ofy.library.scanner import AUDIO_EXTS
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +82,128 @@ def build_plan(root: Path) -> Plan:
                 plan.bytes += p.stat().st_size
     return plan
 
+
+
+# --- selection <-> list file ------------------------------------------------------------------
+# A list of paths relative to the library, one per line (what rsync's --files-from reads): an
+# artist's folder, an album's folder or a song's file.
+
+@dataclass
+class _Library:
+    """Where the downloaded songs are, relative to the library folder."""
+
+    tracks: dict[str, Track]  # "Artist/Album/Song.mp3" -> its track
+    albums: dict[str, list[Album]]  # "Artist/Album" -> the albums with songs in it
+    artist_ids: dict[str, set[str]]  # "Artist" -> the album artists with songs in it
+    artist_folders: dict[str, set[str]]  # album artist id -> the folders their songs are in
+
+
+def _library(root: Path) -> _Library:
+    root = root.expanduser().resolve()
+    with session() as s:
+        albums = {a.release_id: a for a in s.exec(select(Album)).all()}
+        done = list(s.exec(select(Track).where(Track.status == "done")).all())
+    lib = _Library({}, {}, {}, {})
+    for t in done:
+        try:
+            rel = PurePosixPath(Path(t.file_path or "").resolve().relative_to(root).as_posix())
+        except ValueError:
+            continue
+        a = albums.get(t.release_id)
+        lib.tracks[str(rel)] = t
+        if a is None or len(rel.parts) < 2:
+            continue
+        in_folder = lib.albums.setdefault(str(rel.parent), [])
+        if a not in in_folder:
+            in_folder.append(a)
+        if a.artist_id:
+            lib.artist_ids.setdefault(rel.parts[0], set()).add(a.artist_id)
+            lib.artist_folders.setdefault(a.artist_id, set()).add(rel.parts[0])
+    return lib
+
+
+def export_list(root: Path) -> str:
+    """The selection as a list file."""
+    lib = _library(root)
+    album_folders: dict[str, set[str]] = {}
+    for folder, albums in lib.albums.items():
+        for a in albums:
+            album_folders.setdefault(a.release_id, set()).add(folder)
+    track_paths = {t.track_id: rel for rel, t in lib.tracks.items()}
+    with session() as s:
+        sel = list(s.exec(select(SyncSelection)).all())
+    lines: set[str] = set()
+    for x in sel:
+        if x.kind == "artist":
+            lines |= lib.artist_folders.get(x.ref_id, set())
+        elif x.kind == "album":
+            lines |= album_folders.get(x.ref_id, set())
+        elif x.ref_id in track_paths:
+            lines.add(track_paths[x.ref_id])
+    return "".join(f"{line}\n" for line in sorted(lines, key=str.casefold))
+
+
+def _loose(rel: str) -> tuple[str, ...]:
+    """A path compared leniently: each part as artist_key sees it, a song without its extension."""
+    p = PurePosixPath(rel)
+    parts = (*p.parts[:-1], p.stem) if p.suffix.lower() in AUDIO_EXTS else p.parts
+    return tuple(artist_key(x) for x in parts)
+
+
+@dataclass
+class ListImport:
+    selection: list[SyncSelection] = field(default_factory=list)
+    unmatched: list[str] = field(default_factory=list)
+
+
+def import_list(text: str, root: Path) -> ListImport:
+    """What a list file selects. A line matches its path, or failing that the one path that differs
+    only in case, punctuation, accents, "The" or "&"/"and"; one that matches nothing, or more than
+    one path, is left out (in ``unmatched``). An artist's folder selects the artist when all their
+    songs are in folders the list names, otherwise the albums in that folder."""
+    lib = _library(root)
+    known = {"track": set(lib.tracks), "album": set(lib.albums), "artist": set(lib.artist_ids)}
+    loose: dict[tuple[str, ...], set[tuple[str, str]]] = {}
+    for kind, paths in known.items():
+        for rel in paths:
+            loose.setdefault(_loose(rel), set()).add((kind, rel))
+    found: dict[str, set[str]] = {"artist": set(), "album": set(), "track": set()}
+    out = ListImport()
+    for raw in text.splitlines():
+        line = raw.strip().strip("/")
+        if not line or line.startswith("#") or PurePosixPath(line).suffix.lower() in SIDECARS:
+            continue
+        kind = ("track" if PurePosixPath(line).suffix.lower() in AUDIO_EXTS
+                else "artist" if len(PurePosixPath(line).parts) == 1 else "album")
+        if line in known[kind]:
+            found[kind].add(line)
+            continue
+        hits = {rel for k, rel in loose.get(_loose(line), set()) if k == kind}
+        if len(hits) == 1:
+            found[kind] |= hits
+        else:
+            out.unmatched.append(line)
+
+    picked: dict[tuple[str, str], tuple[str, str]] = {}  # (kind, id) -> (title, subtitle)
+    for folder in sorted(found["artist"]):
+        for artist_id in sorted(lib.artist_ids[folder]):
+            if lib.artist_folders[artist_id] <= found["artist"]:
+                name = next(a.artist for albums in lib.albums.values() for a in albums if a.artist_id == artist_id)
+                picked[("artist", artist_id)] = (name, "Artist")
+        for rel, albums in lib.albums.items():
+            if PurePosixPath(rel).parts[0] == folder:
+                for a in albums:
+                    if not a.artist_id or not lib.artist_folders[a.artist_id] <= found["artist"]:
+                        picked[("album", a.release_id)] = (a.title, a.artist)
+    for rel in found["album"]:
+        for a in lib.albums[rel]:
+            picked[("album", a.release_id)] = (a.title, a.artist)
+    for rel in found["track"]:
+        t = lib.tracks[rel]
+        picked[("track", t.track_id)] = (t.title, t.artist)
+    out.selection = [SyncSelection(kind=k, ref_id=i, title=title, subtitle=sub)
+                     for (k, i), (title, sub) in sorted(picked.items())]
+    return out
 
 def stage(plan: Plan, stage_dir: Path) -> None:
     """Recreate ``stage_dir`` as a tree of symlinks to the planned files."""

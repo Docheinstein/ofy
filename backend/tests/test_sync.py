@@ -216,3 +216,54 @@ def test_api_selection_and_run(library, tmp_path, monkeypatch):
             time.sleep(0.05)
         assert st["ok"], st["error"]
         assert st["transferred"] == 3 and (dest / "PF/Meddle/PF - Echoes.mp3").is_file()
+
+
+def _picked(result):
+    return sorted((x.kind, x.ref_id) for x in result.selection)
+
+
+def test_list_export_names_folders_and_files(library):
+    _select("artist", "fm")
+    _select("album", "wall")
+    _select("track", "echoes")
+    assert sync.export_list(library) == "FM\nPF/Meddle/PF - Echoes.mp3\nPF/The Wall\n"
+
+
+def test_list_import_round_trips(library):
+    result = sync.import_list("FM\nPF/The Wall\nPF/Meddle/PF - Echoes.mp3\nPF/Meddle/PF - Echoes.lrc\n", library)
+    assert _picked(result) == [("album", "wall"), ("artist", "fm"), ("track", "echoes")]
+    assert result.unmatched == []
+
+
+def test_list_import_matches_loosely_or_leaves_out(library):
+    result = sync.import_list("the fm\npf/the wall\nPF/Meddle/PF – One of these days.mp3\nPF/Animals\nQueen\n", library)
+    assert _picked(result) == [("album", "wall"), ("artist", "fm"), ("track", "otd")]
+    assert result.unmatched == ["PF/Animals", "Queen"]
+
+
+def test_list_import_selects_albums_when_the_artist_is_also_elsewhere(library):
+    # "pf" also has songs in another folder the list doesn't name: only this folder's albums.
+    p = library / "PF & Friends" / "Live" / "PF - Live.mp3"
+    p.parent.mkdir(parents=True)
+    p.write_bytes(b"x")
+    _album("live", "pf", _track("live1", "live", p))
+    assert _picked(sync.import_list("PF\n", library)) == [("album", "meddle"), ("album", "wall")]
+    assert _picked(sync.import_list("PF\nPF & Friends\n", library)) == [("artist", "pf")]
+
+
+def test_list_api_replaces_the_selection(library):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from ofy.api import sync as sync_api
+    from ofy.db import save_settings
+
+    save_settings(Settings(library_path=str(library)))
+    _select("artist", "pf")
+    app = FastAPI()
+    app.include_router(sync_api.router)
+    with TestClient(app) as c:
+        got = c.post("/api/sync/selection/import", json={"text": "FM\nNope\n"}).json()
+        assert got == {"selected": 1, "unmatched": ["Nope"]}
+        assert [(x["kind"], x["ref_id"]) for x in c.get("/api/sync/selection").json()] == [("artist", "fm")]
+        assert c.get("/api/sync/selection/export").text == "FM\n"

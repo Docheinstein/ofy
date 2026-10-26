@@ -70,6 +70,11 @@ export interface SyncSelectionItem {
   created_at: number;
 }
 
+export interface SyncListImport {
+  selected: number;
+  unmatched: string[];
+}
+
 export interface SyncSummary {
   tracks: number;
   files: number;
