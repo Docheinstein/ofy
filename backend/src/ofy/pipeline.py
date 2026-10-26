@@ -223,7 +223,7 @@ def use_library_artist(model: TagModel, settings: Settings) -> None:
         folders = [p.name for p in Path(settings.library_path).expanduser().iterdir() if p.is_dir()]
     except OSError:
         folders = []
-    old, name = model.albumartist, library_artist_name(model.albumartist, folders)
+    old, name = model.albumartist, library_artist_name(model.albumartist, folders, model.albumartistsort)
     key = artist_key(old)
     model.albumartist = name
     model.albumartistsort, model.artistsort = plain_marks(model.albumartistsort), plain_marks(model.artistsort)

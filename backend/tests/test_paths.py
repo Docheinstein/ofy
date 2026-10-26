@@ -124,3 +124,8 @@ def test_library_artist_name_keeps_the_existing_folder():
     assert library_artist_name("R.E.M.", folders) == "R.E.M."  # the folder only lost the final dot
     assert library_artist_name("The Chicks", folders) == "The Chicks"
     assert library_artist_name("Eagle‐Eye Cherry", folders) == "Eagle-Eye Cherry"  # new: plain marks
+
+
+def test_library_artist_name_finds_a_folder_named_after_the_turned_sort_name():
+    assert library_artist_name("土屋アンナ", ["Anna Tsuchiya"], "Tsuchiya, Anna") == "Anna Tsuchiya"
+    assert library_artist_name("土屋アンナ", [], "Tsuchiya, Anna") == "土屋アンナ"  # no folder yet: as credited

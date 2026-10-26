@@ -84,16 +84,24 @@ def artist_key(name: str) -> str:
     return "".join(c for c in s if c.isalnum())
 
 
-def library_artist_name(name: str, folders: list[str]) -> str:
+def library_artist_name(name: str, folders: list[str], sort_name: str = "") -> str:
     """The album artist's name as the library spells it: when an artist folder differs from ``name`` only
     as :func:`artist_key` ignores, its name (so that folder is kept, not split); otherwise ``name`` with
-    plain marks. A folder that is just ``name`` without what a folder can't hold (R.E.M.) keeps ``name``."""
+    plain marks. A folder that is just ``name`` without what a folder can't hold (R.E.M.) keeps ``name``.
+    A folder named after the sort name turned around ("Tsuchiya, Anna": "Anna Tsuchiya") counts too, so
+    an artist renamed from another script stays renamed."""
     plain = plain_marks(name)
     key = artist_key(name)
+    last, comma, first = sort_name.partition(", ")
+    turned = artist_key(f"{first} {last}") if comma else ""
     for folder in sorted(folders):
         if key and artist_key(folder) == key:
             return plain if sanitize_component(plain) == folder else folder
+    for folder in sorted(folders):
+        if turned and artist_key(folder) == turned:
+            return folder
     return plain
+
 
 def _sanitize_value(v: Any) -> Any:
     if isinstance(v, str):
