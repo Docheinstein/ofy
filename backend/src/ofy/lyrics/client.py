@@ -10,10 +10,19 @@ from ofy.config import env
 from ofy.ratelimit import RateLimiter
 
 _limiter = RateLimiter(0.5)
+RATE_LIMIT_RETRIES = 6
+BUSY = (429, 502, 503, 504)  # too many requests, or the server overloaded: worth waiting for
 
 
 class LrclibError(RuntimeError):
     pass
+
+
+def _retry_after(r: httpx.Response) -> float:
+    try:
+        return max(1.0, min(60.0, float(r.headers.get("retry-after", ""))))
+    except ValueError:
+        return 5.0
 
 
 class LrclibClient:
@@ -30,11 +39,18 @@ class LrclibClient:
         await self._client.aclose()
 
     async def _get(self, path: str, params: dict[str, Any]) -> httpx.Response:
-        async with _limiter:
-            try:
-                return await self._client.get(f"{self.base_url}{path}", params=params)
-            except httpx.HTTPError as e:
-                raise LrclibError(f"LRCLIB request failed: {e}") from e
+        """The response; a 429 (too many requests) or an overloaded server holds back every lookup for its
+        Retry-After (5 s without one), longer each time, then retries."""
+        for attempt in range(RATE_LIMIT_RETRIES + 1):
+            async with _limiter:
+                try:
+                    r = await self._client.get(f"{self.base_url}{path}", params=params)
+                except httpx.HTTPError as e:
+                    raise LrclibError(f"LRCLIB request failed: {e}") from e
+            if r.status_code not in BUSY or attempt == RATE_LIMIT_RETRIES:
+                return r
+            _limiter.pause(_retry_after(r) * (attempt + 1))
+        return r
 
     async def get(self, *, artist: str, title: str, album: str, duration: int | None) -> dict[str, Any] | None:
         params: dict[str, Any] = {"artist_name": artist, "track_name": title, "album_name": album}

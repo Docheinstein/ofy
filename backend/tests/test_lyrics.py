@@ -2,6 +2,7 @@ import httpx
 import pytest
 
 from ofy.config import Settings
+from ofy.lyrics import client as lyrics_client
 from ofy.lyrics import select
 from ofy.lyrics.service import LyricsOutcome, fetch_for_model, write_sidecar
 from ofy.tagging.model import TagModel
@@ -150,6 +151,15 @@ async def test_search_with_no_acceptable_result_is_not_found():
     assert out.status == "not_found"
 
 
+async def test_blank_lyrics_are_no_lyrics():
+    blank = rec(duration=284.0, plainLyrics=" \r\n", syncedLyrics="[00:00.00]\r\n")
+    out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S, transport=transport(
+        blank, [blank, rec(duration=284.0, instrumental=True, plainLyrics=None, syncedLyrics=None)]))
+    assert out.status == "instrumental"
+    out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S, transport=transport(blank, [blank]))
+    assert out.status == "not_found"
+
+
 async def test_instrumental():
     out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S,
                                 transport=transport(rec(instrumental=True, plainLyrics=None, syncedLyrics=None)))
@@ -187,8 +197,24 @@ async def test_network_failure_is_reported_not_raised():
     assert out.status == "error"
 
 
-async def test_server_error_is_reported():
+def test_retry_after():
+    assert lyrics_client._retry_after(httpx.Response(429, headers={"Retry-After": "1"})) == 1.0
+    assert lyrics_client._retry_after(httpx.Response(429)) == 5.0
+
+
+async def test_too_many_requests_waits_and_retries(monkeypatch):
+    monkeypatch.setattr(lyrics_client, "_retry_after", lambda r: 0.0)
+    answers = [httpx.Response(429, headers={"Retry-After": "1"}), httpx.Response(503), httpx.Response(200, json=rec())]
+    out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S,
+                                transport=httpx.MockTransport(lambda request: answers.pop(0)))
+    assert out.status == "synced" and answers == []
+
+
+async def test_server_error_is_reported(monkeypatch):
+    monkeypatch.setattr(lyrics_client, "_retry_after", lambda r: 0.0)
     out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S, transport=transport(httpx.Response(500)))
+    assert out.status == "error"
+    out = await fetch_for_model(model(), Settings(), audio_s=AUDIO_S, transport=transport(httpx.Response(503)))
     assert out.status == "error"
 
 

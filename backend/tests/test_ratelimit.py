@@ -57,6 +57,15 @@ async def test_concurrent_callers_are_serialized():
     assert [round(b - a, 6) for a, b in zip(starts, starts[1:])] == [1.0, 1.0, 1.0]
 
 
+async def test_pause_holds_back_the_next_call():
+    c = FakeClock()
+    rl = RateLimiter(1.0, clock=c, sleep=c.sleep)
+    await rl.acquire()
+    rl.pause(5.0)
+    await rl.acquire()
+    assert c.sleeps == [5.0]
+
+
 async def test_real_clock_never_exceeds_rate():
     import time
 

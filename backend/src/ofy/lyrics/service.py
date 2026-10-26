@@ -71,10 +71,12 @@ async def fetch_for_model(model: TagModel, settings: Settings, *, audio_s: float
 
     try:
         async with LrclibClient(settings.lrclib_url, transport=transport) as c:
-            rec = await c.get(artist=artist, title=model.title, album=model.album, duration=duration)
+            rec = select.without_blank_lyrics(await c.get(artist=artist, title=model.title, album=model.album,
+                                                          duration=duration))
             if not _has_lyrics(rec) or (prefer and rec.get("syncedLyrics") and problem(rec)):
                 # Nothing usable, or synced lyrics timed for another cut: another LRCLIB entry may fit.
-                results = await c.search(artist=artist, title=model.title, album=model.album)
+                results = [select.without_blank_lyrics(r) for r in
+                           await c.search(artist=artist, title=model.title, album=model.album)]
                 trusted = [r for r in results if r.get("syncedLyrics") and not problem(r)] if prefer else []
                 rec = (select.select_search_result(trusted, model.title, artist, duration)
                        or (rec if _has_lyrics(rec) else None)

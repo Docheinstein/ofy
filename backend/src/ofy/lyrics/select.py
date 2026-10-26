@@ -117,6 +117,15 @@ def format_lrc(synced: str, *, artist: str, album: str, title: str, length_s: fl
     return "\n".join(header + body) + "\n"
 
 
+def without_blank_lyrics(r: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The record with lyrics that hold no words (" ", "[00:00.00]") dropped: such entries exist for
+    instrumentals and would otherwise pass for lyrics."""
+    if not r:
+        return r
+    blank = {k: None for k in ("plainLyrics", "syncedLyrics") if r.get(k) and not strip_timestamps(r[k])}
+    return {**r, **blank} if blank else r
+
+
 def classify(r: dict[str, Any] | None, prefer_synced: bool = True) -> str:
     """synced | plain | instrumental | not_found for an LRCLIB record."""
     if not r:

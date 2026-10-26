@@ -52,6 +52,11 @@ class RateLimiter:
                     now = self._clock()
             self._last = now
 
+    def pause(self, seconds: float) -> None:
+        """Hold every caller back for ``seconds`` from now (e.g. a server's Retry-After)."""
+        until = self._clock() + seconds - self.interval
+        self._last = until if self._last is None else max(self._last, until)
+
     async def __aenter__(self) -> RateLimiter:
         await self.acquire()
         return self
