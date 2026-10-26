@@ -229,24 +229,42 @@ async def cover(kind: Literal["release", "release-group"], mbid: str,
 
 
 
+def _library_artist_cover(artist_id: str) -> bytes | None:
+    """The cover of the artist's earliest album in the library whose files have one."""
+    with session() as s:
+        albums = list(s.exec(select(Album).where(Album.artist_id == artist_id)).all())
+        # the earliest released first; albums without a year last
+        for album in sorted(albums, key=lambda a: (not a.year, a.year or "", a.title.casefold())):
+            tracks = list(s.exec(select(Track).where(Track.release_id == album.release_id)).all())
+            if data := local.cover(album, tracks):
+                return data
+    return None
+
+
 @router.get("/artist-image/{mbid}")
 async def artist_image(mbid: str, size: Literal["250", "500", "1200"] = "500",
-                       fallback_rg: str | None = None, wikidata: str | None = None) -> Response:
-    """Artist photo from Wikidata/Commons; falls back to an album cover of the artist if given.
+                       fallback_rg: str | None = None, wikidata: str | None = None,
+                       library: bool = False) -> Response:
+    """Artist photo from Wikidata/Commons; falls back to the cover of one of their albums in the library,
+    then to the album cover ``fallback_rg`` if given. With ``library``, only the library's cover is used.
     ``wikidata`` (the artist's Q-id, when the caller knows it) saves a Wikidata search."""
-    if local.is_local(fallback_rg):
-        # an artist only known from local files: the cover of one of their albums
-        if local.is_local(mbid):
-            return await _local_cover(fallback_rg)  # type: ignore[arg-type]
+    if local.is_local(fallback_rg) or library:
         fallback_rg = None
-    elif local.is_local(mbid):
-        return Response(status_code=404, headers={"Cache-Control": "no-cache"})
-    if wikidata and not (wikidata.startswith("Q") and wikidata[1:].isdigit()):
-        wikidata = None
-    data = await artistimage.fetch_artist_image(mbid, size, wikidata)
+    data = None
+    if not (local.is_local(mbid) or library):
+        if wikidata and not (wikidata.startswith("Q") and wikidata[1:].isdigit()):
+            wikidata = None
+        data = await artistimage.fetch_artist_image(mbid, size, wikidata)
+    if data is None:
+        # no photo: the cover of their first album in the library that has one
+        data = await asyncio.to_thread(_library_artist_cover, mbid)
+        if data is not None:
+            # revalidated each time: the files' cover can change
+            return Response(data, media_type=writers.image_mime(data), headers={"Cache-Control": "no-cache"})
     if data is None and fallback_rg:
         data = await coverart.front_or_none("release-group", fallback_rg, size)
     if data is None:
-        return Response(status_code=404, headers={"Cache-Control": "public, max-age=3600"})
+        # not remembered by the browser: a cover added to the files later should show up
+        return Response(status_code=404, headers={"Cache-Control": "no-cache"})
     media = "image/png" if data[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
     return Response(data, media_type=media, headers={"Cache-Control": "public, max-age=604800"})

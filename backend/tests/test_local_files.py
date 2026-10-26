@@ -132,6 +132,40 @@ def test_album_page_and_cover(library):
 
 
 @needs_ffmpeg
+def test_artist_image_falls_back_to_first_album_with_a_cover(library, monkeypatch):
+    from ofy.api import browse
+
+    scan_library()
+    (album,), _ = _rows()
+    with session() as s:  # an earlier album of theirs whose files have no cover
+        s.add(Album(release_id="r-old", release_group_id="rg-old", title="Old", artist=album.artist,
+                    artist_id=album.artist_id, year="1980"))
+        s.commit()
+    r = asyncio.run(browse.artist_image(album.artist_id))  # type: ignore[arg-type]
+    assert r.body == TINY_JPEG and r.headers["cache-control"] == "no-cache"
+
+    async def no_photo(*_):
+        return None
+
+    monkeypatch.setattr(browse.artistimage, "fetch_artist_image", no_photo)
+    with session() as s:  # the same for an artist known to MusicBrainz without a photo
+        for a in s.exec(select(Album)).all():
+            a.artist_id = "mb-artist"
+            s.add(a)
+        s.commit()
+    assert asyncio.run(browse.artist_image("mb-artist")).body == TINY_JPEG
+    assert asyncio.run(browse.artist_image("someone-else")).status_code == 404
+
+    async def online(*_):
+        raise AssertionError("looked online")
+
+    monkeypatch.setattr(browse.artistimage, "fetch_artist_image", online)
+    monkeypatch.setattr(browse.coverart, "front_or_none", online)
+    assert asyncio.run(browse.artist_image("mb-artist", library=True)).body == TINY_JPEG
+    assert asyncio.run(browse.artist_image("someone-else", fallback_rg="rg", library=True)).status_code == 404
+
+
+@needs_ffmpeg
 def test_edited_and_deleted_files_follow(library):
     _, a, b = library
     scan_library()

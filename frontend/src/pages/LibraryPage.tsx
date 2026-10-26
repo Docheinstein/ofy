@@ -284,7 +284,7 @@ function Caret({ open }: { open: boolean }) {
 
 function Avatar({ group: g, className }: { group: Group; className: string }) {
   return g.artistId ? (
-    <ArtistAvatar id={g.artistId} fallbackRg={g.albums[0].album.release_group_id} className={`${className} shrink-0`} />
+    <ArtistAvatar id={g.artistId} library className={`${className} shrink-0`} />
   ) : (
     <div className={`${className} flex shrink-0 items-center justify-center rounded-full bg-elevated text-muted-foreground shadow-lg`}>
       <User className="h-1/3 w-1/3" />

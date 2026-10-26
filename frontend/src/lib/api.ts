@@ -406,5 +406,5 @@ export const isLocal = (id: string | null | undefined) => !!id?.startsWith("loca
 export const coverUrl = (kind: "release" | "release-group", id: string, size: 250 | 500 | 1200 = 500, fallbackRg?: string) =>
   `/api/cover/${kind}/${id}?size=${size}${fallbackRg ? `&fallback_rg=${fallbackRg}` : ""}`;
 
-export const artistImageUrl = (id: string, size: 250 | 500 | 1200 = 500, fallbackRg?: string, wikidata?: string) =>
-  `/api/artist-image/${id}?size=${size}${fallbackRg ? `&fallback_rg=${fallbackRg}` : ""}${wikidata ? `&wikidata=${wikidata}` : ""}`;
+export const artistImageUrl = (id: string, size: 250 | 500 | 1200 = 500, fallbackRg?: string, wikidata?: string, library?: boolean) =>
+  `/api/artist-image/${id}?size=${size}${fallbackRg ? `&fallback_rg=${fallbackRg}` : ""}${wikidata ? `&wikidata=${wikidata}` : ""}${library ? "&library=true" : ""}`;
