@@ -96,7 +96,7 @@ export function LibraryPage() {
 
   // Synced is decided per song: picked on its own, or brought along by its album or artist.
   const isSynced = (a: LibraryAlbum, t: LibraryTrack) =>
-    sel.has("track", t.track_id) || sel.has("album", a.release_id) || sel.has("artist", a.artist_id);
+    sel.has("track", t.track_id) || sel.has("album", t.release_id) || sel.has("artist", a.artist_id);
   const matches = (text: string) => text.toLowerCase().includes(needle);
   // The search first: a matching artist or album brings all its songs, otherwise only the matching songs remain.
   const searched: Shown[] = (data ?? []).flatMap((a): Shown[] => {
@@ -380,7 +380,7 @@ function AlbumNode({ shown: { album: a, songs, reveal }, filtered, expanded, onO
         >
           <ExternalLink className="h-4 w-4" />
         </Link>
-        <SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} hideWhenOff />
+        <SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} alsoIds={a.release_ids} artistId={a.artist_id} hideWhenOff />
       </div>
       {open && (
         <div className="ml-8 border-l pl-2">
@@ -402,7 +402,7 @@ function SongList({ album: a, songs, onOpen, compact, withAlbum }: {
       songs.map((t) => ({
         recording_id: t.recording_id,
         track_id: t.track_id,
-        release_id: a.release_id,
+        release_id: t.release_id,
         title: t.title,
         artist: t.artist,
         length_ms: t.length_ms,
@@ -424,7 +424,7 @@ function SongList({ album: a, songs, onOpen, compact, withAlbum }: {
                 <Disc className="h-3.5 w-3.5" /> Disc {t.disc}
               </div>
             )}
-            <Row album={a} t={t} withAlbum={withAlbum} onPlay={() => playFrom(i)} onOpen={() => onOpen({ track: t, releaseId: a.release_id })} />
+            <Row album={a} t={t} withAlbum={withAlbum} onPlay={() => playFrom(i)} onOpen={() => onOpen({ track: t, releaseId: t.release_id })} />
           </div>
         );
       })}
@@ -478,7 +478,7 @@ function SongRow({ album: a, t, onPlay, onOpen }: SongRowProps) {
       <SyncToggle
         target={{ kind: "track", id: t.track_id, title: t.title, subtitle: `${t.artist} — ${a.title}` }}
         artistId={a.artist_id}
-        releaseId={a.release_id}
+        releaseId={t.release_id}
         hideWhenOff
       />
     </div>
@@ -518,7 +518,7 @@ function CompactSongRow({ album: a, t, withAlbum, onPlay, onOpen }: SongRowProps
       <SyncToggle
         target={{ kind: "track", id: t.track_id, title: t.title, subtitle: `${t.artist} — ${a.title}` }}
         artistId={a.artist_id}
-        releaseId={a.release_id}
+        releaseId={t.release_id}
         className="h-10 w-10"
       />
       <button
@@ -633,7 +633,7 @@ function AlbumRow({ shown: { album: a, songs }, filtered, withArtist, onClick }:
       art={<Cover src={coverUrl("release", a.release_id, 250, a.release_group_id)} alt="" className="h-14 w-14 shrink-0" rounded="rounded" />}
       title={a.title}
       detail={<>{[withArtist ? a.artist : null, a.year, detail].filter(Boolean).join(" • ")} <Plays n={a.plays} className="ml-1 align-middle" /></>}
-      sync={<SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} onlyWhenOn />}
+      sync={<SyncToggle target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} alsoIds={a.release_ids} artistId={a.artist_id} onlyWhenOn />}
       onClick={onClick}
       testId="library-album-row"
     />
@@ -679,7 +679,7 @@ function AlbumView({ shown: { album: a, songs }, group: g, filtered, onBack, onO
       songs.map((t) => ({
         recording_id: t.recording_id,
         track_id: t.track_id,
-        release_id: a.release_id,
+        release_id: t.release_id,
         title: t.title,
         artist: t.artist,
         length_ms: t.length_ms,
@@ -701,7 +701,7 @@ function AlbumView({ shown: { album: a, songs }, group: g, filtered, onBack, onO
         </div>
       </header>
       <div className="flex items-center gap-2 px-4 pb-3">
-        <SyncToggle variant="button" className="h-8 px-3 text-xs" target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} artistId={a.artist_id} />
+        <SyncToggle variant="button" className="h-8 px-3 text-xs" target={{ kind: "album", id: a.release_id, title: a.title, subtitle: a.artist }} alsoIds={a.release_ids} artistId={a.artist_id} />
         <OpenPage to={`/album/${a.release_group_id}?release=${a.release_id}`} label="Album page" />
         <div className="flex-1" />
         <button

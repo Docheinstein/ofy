@@ -10,6 +10,8 @@ interface Props {
   /** Ancestors, to show the item as already included when one of them is selected. */
   artistId?: string | null;
   releaseId?: string | null;
+  /** More items of the same kind that go along with the target (the other editions of an album). */
+  alsoIds?: string[];
   /** "button" shows a labelled button (page headers); "icon" a small round toggle (rows, cards). */
   variant?: "button" | "icon";
   /** Icon variant only: hide until the parent `group` is hovered while off. */
@@ -20,16 +22,19 @@ interface Props {
 }
 
 /** Marks an artist, album or track to be kept on the sync remote. */
-export function SyncToggle({ target, artistId, releaseId, variant = "icon", hideWhenOff, onlyWhenOn, className }: Props) {
+export function SyncToggle({ target, artistId, releaseId, alsoIds = [], variant = "icon", hideWhenOff, onlyWhenOn, className }: Props) {
   const sel = useSyncSelection();
-  const own = sel.has(target.kind, target.id);
+  const others = alsoIds.filter((id) => id !== target.id);
+  const own = sel.has(target.kind, target.id) || others.some((id) => sel.has(target.kind, id));
   const via = own ? null : sel.inheritedFrom(target.kind === "artist" ? null : artistId, target.kind === "track" ? releaseId : null);
   const on = own || !!via;
   const label = via ? `Synced with the whole ${via}` : own ? "Synced to the remote — click to stop" : "Sync to the remote";
   const click = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!via) sel.set(target, !own);
+    if (via) return;
+    sel.set(target, !own);
+    for (const id of others) if (sel.has(target.kind, id) === own) sel.set({ ...target, id }, !own);
   };
   const Icon = on ? CloudCheck : CloudUpload;
   if (onlyWhenOn && !on) return null;

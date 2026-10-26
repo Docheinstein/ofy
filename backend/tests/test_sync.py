@@ -76,8 +76,53 @@ def test_selection_covers_children(library):
 def test_library_albums_list_downloaded_tracks(library):
     from ofy.api.actions import library_albums
 
+    _album("other-edition", "pf", _track("echoes-2", "other-edition", status="needs_review"),
+           _track("otd-2", "other-edition", status="failed"))
     tracks = {a["release_id"]: [t["track_id"] for t in a["tracks"]] for a in library_albums()}
     assert tracks == {"meddle": ["echoes", "otd"], "wall": ["heyyou"], "rumours": ["dreams", "odd"]}
+
+
+def test_library_albums_merge_editions(library):
+    from ofy.api.actions import library_albums
+
+    _album("meddle-2", "pf", _track("echoes-live", "meddle-2", library / "PF/Meddle/PF - Echoes.mp3"))
+    _album("local-album-m", "pf", _track("local-m", "local-album-m", library / "PF/Meddle/PF - Echoes.mp3"))
+    with session() as s:
+        for rid, title, rg in [("meddle-2", "Meddle", "rg-meddle"), ("local-album-m", "MEDDLE", "local-album-m"),
+                               ("meddle", "Meddle", "rg-meddle"), ("wall", "Meddle", "rg-wall")]:
+            a = s.get(Album, rid)
+            a.title, a.release_group_id = title, rg
+            s.add(a)
+        s.commit()
+    albums = {a["release_id"]: a for a in library_albums()}
+    assert set(albums) == {"meddle", "wall", "rumours"}  # another album of the same name stays apart
+    m = albums["meddle"]
+    assert m["release_ids"] == ["meddle", "meddle-2", "local-album-m"] and m["library"]["done"] == 4
+    assert [(t["track_id"], t["release_id"]) for t in m["tracks"]][:1] == [("echoes", "meddle")]
+    assert "release_ids" not in albums["wall"]
+
+
+def test_library_albums_join_local_artists(library):
+    from ofy.api.actions import library_albums
+
+    with session() as s:
+        for rid, artist, artist_id in [("meddle", "The B‐52’s", "b52"), ("rumours", "Guess Who", "gw1"),
+                                       ("wall", "Guess Who", "gw2")]:
+            a = s.get(Album, rid)
+            a.artist, a.artist_id = artist, artist_id
+            s.add(a)
+        s.commit()
+    _album("local-album-1", "local-artist-1", _track("local-1", "local-album-1", library / "PF/Meddle/PF - Echoes.mp3"))
+    _album("local-album-2", "local-artist-2", _track("local-2", "local-album-2", library / "PF/Meddle/PF - Echoes.mp3"))
+    with session() as s:
+        for rid, artist in [("local-album-1", "The B-52's"), ("local-album-2", "Guess Who")]:
+            a = s.get(Album, rid)
+            a.artist = artist
+            s.add(a)
+        s.commit()
+    ids = {a["release_id"]: a["artist_id"] for a in library_albums()}
+    assert ids["local-album-1"] == "b52"
+    assert ids["local-album-2"] == "local-artist-2"  # two artists by that name: which one isn't known
 
 
 def test_rsync_command_over_ssh(tmp_path):

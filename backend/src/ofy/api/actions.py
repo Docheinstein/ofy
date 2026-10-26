@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -344,7 +346,7 @@ def library_albums() -> list[dict[str, Any]]:
     for a in albums:
         ts = by_rel.get(a.release_id, [])
         summ = album_summary([t.status for t in ts], a.track_count)
-        if summ["done"] == 0 and summ["active"] == 0 and summ["failed"] == 0 and summ["needs_review"] == 0:
+        if summ["done"] == 0:  # only what's in the library folder: not songs being fetched or waiting for review
             continue
         lyr: dict[str, int] = {}
         for t in ts:
@@ -352,11 +354,63 @@ def library_albums() -> list[dict[str, Any]]:
                 lyr[t.lyrics_status] = lyr.get(t.lyrics_status, 0) + 1
         # the downloaded songs, for the library tree (whether each is synced is resolved by the UI)
         done = sorted((t for t in ts if t.status == "done"), key=lambda t: (t.disc, t.position))
-        songs = [{"track_id": t.track_id, "recording_id": t.recording_id, "disc": t.disc, "position": t.position,
+        songs = [{"track_id": t.track_id, "release_id": t.release_id, "recording_id": t.recording_id,
+                  "disc": t.disc, "position": t.position,
                   "title": t.title, "artist": t.artist, "length_ms": t.length_ms, "lyrics_status": t.lyrics_status}
                  for t in done]
         out.append({**a.model_dump(), "library": summ, "lyrics": lyr, "tracks": songs})
+    _join_local_artists(out)
+    out = _merge_editions(out)
     out.sort(key=lambda x: (x["artist"].lower(), x["year"] or "", x["title"].lower()))
+    return out
+
+
+def _join_local_artists(albums: list[dict[str, Any]]) -> None:
+    """Put an album only known from local files under the MusicBrainz artist of the same name, if there's one,
+    so the artist isn't listed twice (e.g. "The B-52's" next to "The B‐52’s")."""
+    from ofy.download.paths import artist_key
+
+    ids: dict[str, set[str]] = {}
+    for a in albums:
+        if a["artist_id"] and not local.is_local(a["artist_id"]):
+            ids.setdefault(artist_key(a["artist"]), set()).add(a["artist_id"])
+    for a in albums:
+        if local.is_local(a["artist_id"]) and len(found := ids.get(artist_key(a["artist"]), set())) == 1:
+            a["artist_id"] = next(iter(found))
+
+
+def _merge_editions(albums: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One entry per album: editions of it (same release group, or local files with the same title) with songs
+    in the library show as the one with most songs, holding all their songs. ``release_ids`` lists them all."""
+    def title_key(a: dict[str, Any]) -> tuple[str, str]:
+        title = re.sub(r"[^\w]+", "", unicodedata.normalize("NFKC", a["title"]).casefold())
+        return a["artist_id"] or a["artist"].casefold(), title
+
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for a in albums:
+        groups.setdefault(title_key(a), []).append(a)
+    out = []
+    for editions in groups.values():
+        editions.sort(key=lambda a: (-a["library"]["done"], -a["track_count"]))
+        while editions:
+            main, rest = editions[0], []
+            same = [main]
+            for a in editions[1:]:
+                local_one = local.is_local(a["release_id"]) or local.is_local(main["release_id"])
+                (same if local_one or a["release_group_id"] == main["release_group_id"] else rest).append(a)
+            editions = rest
+            if len(same) > 1:
+                order = {a["release_id"]: i for i, a in enumerate(same)}
+                done = sum(a["library"]["done"] for a in same)
+                lyrics: dict[str, int] = {}
+                for a in same:
+                    for k, n in a["lyrics"].items():
+                        lyrics[k] = lyrics.get(k, 0) + n
+                main = {**main, "release_ids": list(order), "lyrics": lyrics,
+                        "library": {**main["library"], "done": done, "total": max(main["library"]["total"], done)},
+                        "tracks": sorted((t for a in same for t in a["tracks"]),
+                                         key=lambda t: (t["disc"], t["position"], order[t["release_id"]]))}
+            out.append(main)
     return out
 
 

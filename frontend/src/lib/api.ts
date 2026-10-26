@@ -300,12 +300,16 @@ export interface LibraryAlbum {
   lyrics: Record<string, number>;
   /** The downloaded songs, by disc and position. */
   tracks: LibraryTrack[];
+  /** When the library has songs of several editions of the album, all of them (this one first). */
+  release_ids?: string[];
   /** Plays on ListenBrainz: null when it has none, absent when ListenBrainz is off. */
   plays?: number | null;
 }
 
 export interface LibraryTrack {
   track_id: string;
+  /** The edition the song is on: an album can show the songs of several (`LibraryAlbum.release_ids`). */
+  release_id: string;
   recording_id: string;
   disc: number;
   position: number;
