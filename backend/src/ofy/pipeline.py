@@ -16,7 +16,7 @@ from ofy import artistimage, coverart
 from ofy.config import Settings, env
 from ofy.db import Album, Job, Track, load_settings, session
 from ofy.download import convert as conv
-from ofy.download.paths import render_template
+from ofy.download.paths import artist_key, library_artist_name, plain_marks, render_template
 from ofy.download.ytdlp import download_audio
 from ofy.jobs import PermanentError, queue
 from ofy.library import local
@@ -178,6 +178,7 @@ async def finish_track(track_id: str, release: dict, settings: Settings, audio: 
     t = update_track(track_id, stage="tagging")
     model = build_tag_model(release, track_id, youtube_video_id=t.video_id,
                             genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
+    use_library_artist(model, settings)
     rg_id = (release.get("release-group") or {}).get("id")
     cover = await coverart.front_for_release(release["id"], rg_id, "1200")
     await asyncio.to_thread(writers.write_tags, audio, model, cover)
@@ -212,6 +213,26 @@ async def finish_track(track_id: str, release: dict, settings: Settings, audio: 
     )
     return dest
 
+
+def use_library_artist(model: TagModel, settings: Settings) -> None:
+    """Credit the album artist as the library's folder for them is named, so an album credited to
+    "Black Eyed Peas" joins "The Black Eyed Peas" (and a retag doesn't split a merged folder again)."""
+    if not settings.path_template.startswith("{albumartist}/"):
+        return
+    try:
+        folders = [p.name for p in Path(settings.library_path).expanduser().iterdir() if p.is_dir()]
+    except OSError:
+        folders = []
+    old, name = model.albumartist, library_artist_name(model.albumartist, folders)
+    key = artist_key(old)
+    model.albumartist = name
+    model.albumartistsort, model.artistsort = plain_marks(model.albumartistsort), plain_marks(model.artistsort)
+    model.albumartists = [name if artist_key(a) == key else a for a in model.albumartists]
+    model.artists = [name if artist_key(a) == key else a for a in model.artists]
+    # The track's own credit, spelled its own way, may start with the album artist: "<name> feat. ...".
+    head, rest = model.artist[:len(old)], model.artist[len(old):]
+    if artist_key(head) == key and rest[:1] in ("", " ", ","):
+        model.artist = name + rest
 
 def library_destination(settings: Settings, model: TagModel, ext: str, track_id: str) -> Path:
     root = Path(settings.library_path).expanduser()
@@ -304,6 +325,7 @@ async def handle_retag(job: Job) -> None:
         path = Path(t.file_path)
         model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id,
                                 genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
+        use_library_artist(model, settings)
         fields = await asyncio.to_thread(writers.read_fields, path)
         if settings.lyrics_embed:
             model.lyrics = (fields.get("lyrics") or [None])[0]

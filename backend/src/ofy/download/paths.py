@@ -15,6 +15,7 @@ WINDOWS_RESERVED = {
     *(f"LPT{i}" for i in range(1, 10)),
 }
 MAX_COMPONENT = 180  # bytes (UTF-8); most filesystems allow 255, leave room for .lrc/.part
+PLAIN_MARKS = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": "-", "\u2019": "'"})
 
 TEMPLATE_FIELDS = {
     "albumartist", "artist", "album", "title", "year", "date", "originalyear", "disc",
@@ -67,6 +68,32 @@ def sanitize_component(name: str, *, max_bytes: int = MAX_COMPONENT, replacement
             name = _truncate_bytes(name, max_bytes).rstrip(". ")
     return name
 
+
+
+def plain_marks(name: str) -> str:
+    """``name`` with typographic dashes and apostrophes made plain (``-`` and ``'``)."""
+    return name.translate(PLAIN_MARKS)
+
+
+def artist_key(name: str) -> str:
+    """What two spellings of the same artist share: no case, accents, punctuation, leading "The", or
+    "&"/"and"/"with" (e.g. "The Black Eyed Peas" and "Black Eyed Peas", "R.E.M." and "R E M")."""
+    s = unicodedata.normalize("NFKD", plain_marks(name)).casefold()
+    s = re.sub(r"^the\s+", "", "".join(c for c in s if not unicodedata.combining(c)))
+    s = re.sub(r"\s+(?:&|and|with)\s+", " ", s)
+    return "".join(c for c in s if c.isalnum())
+
+
+def library_artist_name(name: str, folders: list[str]) -> str:
+    """The album artist's name as the library spells it: when an artist folder differs from ``name`` only
+    as :func:`artist_key` ignores, its name (so that folder is kept, not split); otherwise ``name`` with
+    plain marks. A folder that is just ``name`` without what a folder can't hold (R.E.M.) keeps ``name``."""
+    plain = plain_marks(name)
+    key = artist_key(name)
+    for folder in sorted(folders):
+        if key and artist_key(folder) == key:
+            return plain if sanitize_component(plain) == folder else folder
+    return plain
 
 def _sanitize_value(v: Any) -> Any:
     if isinstance(v, str):

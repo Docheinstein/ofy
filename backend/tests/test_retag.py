@@ -93,3 +93,28 @@ def test_same_name_gets_disc_track_suffix(tmp_path, fixture):
     assert second.name == "Radiohead - Airbag (1-02).mp3"
     # the track that owns the file keeps its name
     assert pipeline.library_destination(settings, m1, "mp3", t1["id"]) == first
+
+
+def test_album_joins_the_library_folder_of_its_artist(tmp_path, fixture):
+    release = fixture("release_ok_computer.json")
+    t0 = release["media"][0]["tracks"][0]
+    lib = tmp_path / "lib"
+    (lib / "The Radiohead").mkdir(parents=True)
+    settings = Settings(library_path=str(lib))
+    model = build_tag_model(release, t0["id"])
+    pipeline.use_library_artist(model, settings)
+    assert (model.albumartist, model.artist) == ("The Radiohead", "The Radiohead")
+    assert model.albumartists == model.artists == ["The Radiohead"]
+    dest = pipeline.library_destination(settings, model, "mp3", t0["id"])
+    assert dest == lib / "The Radiohead" / "OK Computer" / "The Radiohead - Airbag.mp3"
+
+
+def test_track_credit_spelled_differently_follows_the_album_artist(tmp_path, fixture):
+    release = fixture("release_ok_computer.json")
+    t0 = release["media"][0]["tracks"][0]
+    (tmp_path / "radiohead").mkdir()
+    model = build_tag_model(release, t0["id"])
+    model.artist, model.artists = "RadioHead feat. Someone", ["RadioHead", "Someone"]
+    pipeline.use_library_artist(model, Settings(library_path=str(tmp_path)))
+    assert model.artist == "radiohead feat. Someone"
+    assert model.artists == ["radiohead", "Someone"]

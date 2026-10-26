@@ -3,6 +3,9 @@ import pytest
 from ofy.download.paths import (
     DEFAULT_TEMPLATE,
     TemplateError,
+    artist_key,
+    library_artist_name,
+    plain_marks,
     render_template,
     sanitize_component,
     validate_template,
@@ -97,3 +100,27 @@ def test_old_default_template_is_upgraded():
         assert Settings(path_template=old).path_template == DEFAULT_TEMPLATE
     custom = "{artist}/{year} {album}/{title}.{ext}"
     assert Settings(path_template=custom).path_template == custom
+
+
+def test_plain_marks():
+    assert plain_marks("The B‐52’s") == "The B-52's"
+
+
+def test_artist_key_ignores_spelling_differences():
+    assert artist_key("The Black Eyed Peas") == artist_key("Black Eyed Peas")
+    assert artist_key("blink‐182") == artist_key("Blink-182")
+    assert artist_key("R.E.M.") == artist_key("R E M")
+    assert artist_key("Simon and Garfunkel") == artist_key("Simon & Garfunkel")
+    assert artist_key("Neil Young with Crazy Horse") == artist_key("Neil Young & Crazy Horse")
+    assert artist_key("Paco de Lucía, Al Di Meola, John McLaughlin") == artist_key(
+        "Paco de Lucia, Al Di Meola & John McLaughlin")
+    assert artist_key("Chic") != artist_key("The Chicks")
+
+
+def test_library_artist_name_keeps_the_existing_folder():
+    folders = ["The Black Eyed Peas", "blink-182", "R.E.M", "Chic"]
+    assert library_artist_name("Black Eyed Peas", folders) == "The Black Eyed Peas"
+    assert library_artist_name("blink‐182", folders) == "blink-182"
+    assert library_artist_name("R.E.M.", folders) == "R.E.M."  # the folder only lost the final dot
+    assert library_artist_name("The Chicks", folders) == "The Chicks"
+    assert library_artist_name("Eagle‐Eye Cherry", folders) == "Eagle-Eye Cherry"  # new: plain marks

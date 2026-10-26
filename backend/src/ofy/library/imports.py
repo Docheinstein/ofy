@@ -82,7 +82,7 @@ def match_files(files: list[AddedFile], rows: list[dict[str, Any]]) -> tuple[dic
 
 def album_folders(release: dict[str, Any], missing: list[str]) -> list[Path]:
     """Where the album's songs are (the folder of its downloads), or would go."""
-    from ofy.pipeline import library_destination
+    from ofy.pipeline import library_destination, use_library_artist
 
     settings = load_settings()
     with session() as s:
@@ -90,6 +90,7 @@ def album_folders(release: dict[str, Any], missing: list[str]) -> list[Path]:
     folders = [Path(album.folder)] if album and album.folder else []
     for tid in missing:
         model = build_tag_model(release, tid)
+        use_library_artist(model, settings)
         folder = library_destination(settings, model, "mp3", tid).parent
         if folder not in folders:
             folders.append(folder)
