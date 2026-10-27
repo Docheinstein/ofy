@@ -118,3 +118,18 @@ def test_track_credit_spelled_differently_follows_the_album_artist(tmp_path, fix
     pipeline.use_library_artist(model, Settings(library_path=str(tmp_path)))
     assert model.artist == "radiohead feat. Someone"
     assert model.artists == ["radiohead", "Someone"]
+
+
+async def test_artist_genres_when_musicbrainz_has_none_for_the_album(fixture, monkeypatch):
+    release = fixture("release_ok_computer.json")
+    artist_id = release["artist-credit"][0]["artist"]["id"]
+
+    class Artists:
+        async def artist(self, mbid):
+            assert mbid == artist_id
+            return {"genres": [{"name": "alternative rock", "count": 20}, {"name": "art rock", "count": 5},
+                               {"name": "noise", "count": 1}]}
+
+    monkeypatch.setattr(pipeline, "get_mb", lambda: Artists())
+    assert await pipeline.artist_genres(release, Settings()) == ["alternative rock", "art rock"]
+    assert await pipeline.artist_genres(release, Settings(genre_mode="joined")) == ["alternative rock; art rock"]

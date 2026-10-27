@@ -26,7 +26,7 @@ from ofy.match.scoring import COMPOSITE_SEP
 from ofy.mb.client import get_mb
 from ofy.tagging import writers
 from ofy.tagging.mapping import lyrics_missing_from
-from ofy.tagging.model import TagModel, build_tag_model
+from ofy.tagging.model import TagModel, build_tag_model, format_genres, top_genres
 from ofy.tracks import (
     ensure_release_rows,
     get_track,
@@ -178,6 +178,8 @@ async def finish_track(track_id: str, release: dict, settings: Settings, audio: 
     t = update_track(track_id, stage="tagging")
     model = build_tag_model(release, track_id, youtube_video_id=t.video_id,
                             genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
+    if not model.genres:
+        model.genres = await artist_genres(release, settings)
     use_library_artist(model, settings)
     rg_id = (release.get("release-group") or {}).get("id")
     cover = await coverart.front_for_release(release["id"], rg_id, "1200")
@@ -212,6 +214,21 @@ async def finish_track(track_id: str, release: dict, settings: Settings, audio: 
         lyrics_status=lyrics_status, lyrics_path=lyrics_path,
     )
     return dest
+
+
+async def artist_genres(release: dict, settings: Settings) -> list[str]:
+    """The genres of the album's artist(s) on MusicBrainz, written when the song and album have none there."""
+    from ofy.tagging.model import VARIOUS_ARTISTS_ID
+
+    lists = []
+    for c in release.get("artist-credit") or []:
+        mbid = (c.get("artist") or {}).get("id")
+        if mbid and mbid != VARIOUS_ARTISTS_ID:
+            try:
+                lists.append((await get_mb().artist(mbid)).get("genres"))
+            except Exception as e:  # best effort: no genre rather than no song
+                log.info("genres of artist %s unavailable: %s", mbid, e)
+    return format_genres(top_genres(*lists), settings.genre_mode, settings.genre_separator)
 
 
 def use_library_artist(model: TagModel, settings: Settings) -> None:
@@ -319,12 +336,17 @@ async def handle_retag(job: Job) -> None:
     ensure_release_rows(release)
     rg_id = (release.get("release-group") or {}).get("id")
     cover = await coverart.front_for_release(release["id"], rg_id, "1200")
+    fallback_genres: list[str] | None = None
     for t in tracks_for_release(job.release_id):  # type: ignore[arg-type]
         if t.status != "done" or not t.file_path or not Path(t.file_path).is_file():
             continue
         path = Path(t.file_path)
         model = build_tag_model(release, t.track_id, youtube_video_id=t.video_id,
                                 genre_mode=settings.genre_mode, genre_separator=settings.genre_separator)
+        if not model.genres:
+            if fallback_genres is None:
+                fallback_genres = await artist_genres(release, settings)
+            model.genres = fallback_genres
         use_library_artist(model, settings)
         fields = await asyncio.to_thread(writers.read_fields, path)
         if settings.lyrics_embed:
